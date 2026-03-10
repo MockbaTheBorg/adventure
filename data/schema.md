@@ -55,8 +55,8 @@ When **all** listed objects are simultaneously in the player's inventory
   "is_shield":     true,               (optional, default false) can be equipped as a shield
   "damage":        5,                  (optional, default 0) weapon bonus damage added per attack
   "defense":       20,                 (optional, default 0) shield damage absorption percentage (0-100)
-  "max_durability": 100,               (optional, default 0) 0 = durability not tracked; sets starting durability
-  "durability":    80,                 (optional) starting durability; defaults to max_durability if absent
+  "max_durability": 100,               (optional, default 0) 0 = durability not tracked; -1 = indestructible
+  "durability":    80,                 (optional) starting durability (0-100 scale); defaults to max_durability if absent
   "heal":          30,                 (optional, default 0) HP restored when player uses this item (0 = no heal)
   "repair_amount": 25,                 (optional, default 0) durability restored per use as a repair kit (0 = not a kit)
   "is_template":   true,               (optional, default false) prototype for dynamic spawning; never placed in world
@@ -72,6 +72,13 @@ When **all** listed objects are simultaneously in the player's inventory
   and inventory is not full).
 - `on_use_end` fires only on a successful use (correct key, door unlocked).
 - `end_message` is shared between `on_pickup_end` and `on_use_end`.
+- **Durability** is an integer on a 0–100 scale representing condition percentage.
+  Weapons lose 2 durability per attack; shields lose 3 per hit absorbed.
+  At 0 durability the item is broken (weapon deals no bonus damage; shield
+  absorbs nothing).  Set `max_durability` to `-1` for indestructible gear
+  that never degrades.
+- **Weapon damage** = 5 (base unarmed) + `damage` × (`durability` / 100).
+- **Shield absorption** = `defense`% × (`durability`% / 100) of incoming NPC damage.
 
 ---
 
@@ -182,10 +189,25 @@ When **all** listed objects are simultaneously in the player's inventory
 }
 ```
 
-- The spawned NPC receives a unique id of the form `"{npc_id}_NN"` (e.g. `"goblin_01"`).
-- Template NPCs (those with `"is_template": true`) are never placed directly in a room;
-  they serve only as prototypes for the spawn system.
-- Up to 4 spawn entries per room are supported.
+- The spawned NPC receives a unique id of the form `"{npc_id}_NN"` where
+  `NN` is a zero-padded two-digit number starting at `01` (e.g. `"goblin_01"`,
+  `"goblin_02"`).  The engine picks the lowest unused number; maximum 99
+  instances per template.
+- Template NPCs (those with `"is_template": true`) are never placed directly
+  in a room; they serve only as prototypes for the spawn system.  The same
+  applies to template Objects.
+- Up to 4 spawn entries per room are supported (`ROOM_MAX_SPAWNS`).
+- **respawn = false** (default): the engine checks whether an instance from
+  this template is already present in the room (alive or dead).  If so, the
+  entry is skipped entirely — the NPC spawns at most once per game.
+- **respawn = true**: the probability roll happens on every room entry,
+  regardless of existing instances.  This allows a room to accumulate
+  multiple spawned NPCs over repeated visits.
+- Spawned NPCs inherit all fields from the template (name, dialogue, stats,
+  drops, etc.).  Only the `id` is unique; all other string fields are shared
+  with the template and must not be freed separately.
+- Dynamic NPC and Object state (alive, hp, talked, durability, room
+  placement) is fully preserved across save/resume.
 
 ---
 
@@ -220,6 +242,65 @@ Three independent end-condition mechanisms exist; any may trigger at any time:
 
 ---
 
+## Combat system
+
+The player starts with **100 HP**.  Combat is turn-based and happens
+inline during the normal command loop.
+
+### Hostile NPCs
+
+When the player enters a room containing a hostile NPC (`"hostile": true`,
+alive, with `damage > 0`), a warning is printed.  If the player's next
+command is anything other than `[G]o`, every hostile NPC in the room
+strikes first (dealing their `damage` value), then the chosen command
+executes normally.  Choosing `[G]o` lets the player flee without being hit.
+
+### Attacking (`[A]ttack`)
+
+The player picks an alive NPC and strikes.  Damage dealt:
+
+- **Unarmed** (no weapon equipped): 5 base damage.
+- **Armed**: 5 + `weapon.damage` × (`weapon.durability` / 100).
+
+After the player strikes, a combat NPC (`damage > 0`) counter-attacks.
+Counter-attack damage is reduced by an equipped shield:
+
+- **Absorbed** = `npc.damage` × (`shield.defense` / 100) × (`shield.durability` / 100).
+- **Damage taken** = `npc.damage` − absorbed (minimum 0).
+
+When an NPC reaches 0 HP it is defeated; if it has a `drops` field the
+referenced object appears in the room.  When the player reaches 0 HP the
+game ends with a lose screen.
+
+### Equipment (`[E]quip`)
+
+The player can equip one weapon and one shield from inventory.
+Selecting an already-equipped item unequips it.  Equipment status and
+durability are shown in the room header and in `[I]nspect`.
+
+### Durability
+
+Weapons lose **2** durability per attack; shields lose **3** per hit
+absorbed.  At 0 durability the item is broken (no bonus damage / no
+absorption).  Set `max_durability` to `-1` for indestructible gear.
+
+### Healing
+
+- **Healing items**: an object with `heal > 0` and no `use_target` restores
+  HP when the player uses it via `[U]se`.  Player HP is capped at 100.
+- **Healer NPCs**: an NPC with `"healer": true` restores `heal_amount` HP
+  every time the player talks to them.
+
+### Repair
+
+- **Repairer NPCs**: an NPC with `"repairer": true` restores all equipped
+  gear to full durability when the player uses `[R]epair`.
+- **Repair kits**: an object with `repair_amount > 0` in inventory lets
+  the player repair one piece of equipped gear, adding `repair_amount`
+  durability (capped at `max_durability`).  Consumed if `single_use` is set.
+
+---
+
 ## Default fallback messages summary
 
 | Situation                             | Default message                         |
@@ -242,3 +323,11 @@ Three independent end-condition mechanisms exist; any may trigger at any time:
 | Door already destroyed                | That door is already destroyed.         |
 | No NPC in room                        | There's no one to talk to here.         |
 | NPC with no dialogue                  | They have nothing more to say.          |
+| No alive NPC to attack                | There is no one to fight here.          |
+| Player killed (0 HP)                  | You have been killed.                   |
+| Weapon durability reaches 0           | Your weapon is now useless!             |
+| Shield durability reaches 0           | Your shield is now useless!             |
+| No equippable items in inventory      | You have nothing to equip.              |
+| Player already at full HP             | You are already at full health.         |
+| No repairer NPC or repair kit         | Nothing to repair with.                 |
+| All gear already at full durability   | Already at full condition.              |

@@ -4,15 +4,17 @@
       "id": "elder_kael",
       "name": "Elder Kael",
       "description": "A tall figure with pale silvery skin and deep-set amber eyes. He moves with unhurried calm, carrying a carved staff of dark moon-stone.",
-      "dialogue": "You come from the sky-vessel. We have watched it drift for many cycles. Your companions arrived first — the impatient one and the quiet woman. The quiet woman chose to stay. The impatient one waits, but not patiently. I sense you seek the humming stones. Take my digging tool — the old caves beneath the eastern ridge hold what you need. Our ancestors once drew power from those crystals. Perhaps yours will too.",
-      "after_dialogue": "The crystals of the deep caves powered our ancestors' machines long ago. They may power yours again. Be careful of the side tunnels — they go deep and do not return.",
-      "gives": "pickaxe"
+      "dialogue": "You come from the sky-vessel. We have watched it drift for many cycles. Your companions arrived first — the impatient one and the quiet woman. The quiet woman chose to stay. The impatient one waits, but not patiently. I sense you seek the humming stones. Take my digging tool — the old caves beneath the eastern ridge hold what you need. Our ancestors once drew power from those crystals. Perhaps yours will too. But be warned: the caves are not empty. The crystal crawlers stir when outsiders enter. They are drawn to warmth and light.",
+      "after_dialogue": "The crystals of the deep caves powered our ancestors' machines long ago. They may power yours again. Be careful of the crawlers — and the side tunnels. They go deep and do not return.",
+      "gives": "pickaxe",
+      "healer": true,
+      "heal_amount": 25
     },
     {
       "id": "brea",
       "name": "Brea",
       "description": "Your crewmate — the Heron's navigation engineer. She looks healthier than you remember, her usual edge replaced by something like peace.",
-      "dialogue": "You made it. I wasn't sure anyone else would come. I have to be honest with you — I'm not going back. Kael's people took us in. I found something here I never had out there. The ship never felt like home. Here does. Take this cave map — I scouted the eastern ridge before I made my decision. The deepest chamber has a cluster of raw energy crystals. They should interface with the Heron's generator array.",
+      "dialogue": "You made it. I wasn't sure anyone else would come. I have to be honest with you — I'm not going back. Kael's people took us in. I found something here I never had out there. The ship never felt like home. Here does. Take this cave map — I scouted the eastern ridge before I made my decision. The deepest chamber has a cluster of raw energy crystals. They should interface with the Heron's generator array. Watch yourself in there — I heard things moving in the dark. Clicking, like stone on stone.",
       "after_dialogue": "I know you think I'm abandoning you. Maybe I am. The choice is made. Good luck with the Heron.",
       "gives": "cave_map"
     },
@@ -20,8 +22,26 @@
       "id": "adam",
       "name": "Adam",
       "description": "Your second-in-command. Dishevelled, arms crossed, wearing an expression of barely-contained impatience.",
-      "dialogue": "Finally! I thought I'd be stuck in this place forever. Listen — I've been thinking. Once you fix the Heron, I get the captain's chair. Harmon is gone, the others scattered. Seniority — it's only fair. So get those crystals from the caves east of the village, fix the generator, and we get out of here. I am not spending another night breathing this air.",
+      "dialogue": "Finally! I thought I'd be stuck in this place forever. Listen — I've been thinking. Once you fix the Heron, I get the captain's chair. Harmon is gone, the others scattered. Seniority — it's only fair. So get those crystals from the caves east of the village, fix the generator, and we get out of here. I am not spending another night breathing this air. Oh — and the locals warned me about cave creatures. Crystal crawlers or something. Take a weapon if you have one.",
       "after_dialogue": "Are you still here? The caves are east of the village. Crystals. Generator. Ship. Let's go."
+    },
+    {
+      "id": "craftsman",
+      "name": "Mira",
+      "description": "A wiry woman with calloused hands and sharp amber eyes. Her workbench is covered in moon-stone tools and half-finished carvings. She studies your off-world equipment with undisguised fascination.",
+      "dialogue": "Sky-metal. Interesting alloys. Your tools are clever but fragile. Bring them to me if they break — I can mend anything that holds an edge or a charge. Our moon-stone bindings are stronger than they look.",
+      "after_dialogue": "Bring me your broken things. I'll set them right.",
+      "repairer": true
+    },
+    {
+      "id": "cave_crawler",
+      "name": "Crystal Crawler",
+      "description": "A low-slung creature the size of a large dog, its carapace studded with crystalline growths that pulse with the same blue-white light as the cave walls. Segmented legs click against stone. Eyeless, it tracks by vibration and heat.",
+      "hostile": true,
+      "hp": 15,
+      "damage": 8,
+      "drops": "crystal_shard",
+      "is_template": true
     }
   ],
 
@@ -32,7 +52,7 @@
       "description": "A wall-mounted metal locker with a red cross emblem. The latch hangs open.",
       "pickupable": false,
       "openable": true,
-      "contains": ["keycard", "medical_log"],
+      "contains": ["keycard", "medical_log", "repair_kit"],
       "message": "The locker is bolted to the wall."
     },
     {
@@ -48,6 +68,14 @@
       "name": "Medical Log",
       "description": "Dr. Garney's last entry: 'Power failure spreading through all decks. Harmon ordered evacuation. Pod 4 is showing hull stress — I raised it, but no one listened. Revived the engineer as last resort — maybe they can do something. God help us all.' Dated three standard days ago.",
       "pickupable": true
+    },
+    {
+      "id": "repair_kit",
+      "name": "Emergency Repair Kit",
+      "description": "A compact toolkit stamped HERON EMERGENCY STORES. Contains micro-welders, conductive paste, and binding strips. Enough to patch up damaged equipment once.",
+      "pickupable": true,
+      "single_use": true,
+      "repair_amount": 40
     },
     {
       "id": "patient_chart",
@@ -79,6 +107,26 @@
       "message": "There's nothing nearby the remote can link to."
     },
     {
+      "id": "stun_baton",
+      "name": "Stun Baton",
+      "description": "A retractable security baton with a charged capacitor tip. Standard issue for ship security details. The charge indicator glows a faint blue — still functional after three days on reserve power.",
+      "pickupable": true,
+      "is_weapon": true,
+      "damage": 10,
+      "max_durability": 100,
+      "durability": 80
+    },
+    {
+      "id": "maintenance_shield",
+      "name": "Generator Shield",
+      "description": "A heavy curved panel designed to protect maintenance crews from energy surges while working on the generator. Scorch marks from the cascade failure run across its face, but it still holds.",
+      "pickupable": true,
+      "is_shield": true,
+      "defense": 35,
+      "max_durability": 100,
+      "durability": 70
+    },
+    {
       "id": "generator",
       "name": "Main Generator",
       "description": "The Heron's primary power generator — a cylindrical unit the size of a small room, cold and silent. The crystal array housing is shattered, scorched around the edges. A jagged slot where the energy crystal cluster should be. Without crystals, this ship is dead.",
@@ -108,8 +156,17 @@
     {
       "id": "cave_map",
       "name": "Cave Map",
-      "description": "A rough sketch on tanned hide, drawn in charcoal. The cave entrance, a winding main tunnel, and a large chamber marked with crystal symbols. An arrow points north, and in a neat hand beside it: 'deepest chamber — straight in, ignore the side tunnels.' Brea's writing.",
+      "description": "A rough sketch on tanned hide, drawn in charcoal. The cave entrance, a winding main tunnel, and a large chamber marked with crystal symbols. An arrow points north, and in a neat hand beside it: 'deepest chamber — straight in, ignore the side tunnels.' A second note in the margin: 'heard clicking in the dark — stay alert.' Brea's writing.",
       "pickupable": true
+    },
+    {
+      "id": "crystal_shard",
+      "name": "Crystal Shard",
+      "description": "A small fragment of energy crystal, pulsing with a faint warmth. The resonance is soothing — holding it close eases pain and quickens recovery.",
+      "pickupable": true,
+      "heal": 20,
+      "is_template": true,
+      "template_base": "crystal_shard"
     }
   ],
 
@@ -217,8 +274,8 @@
     {
       "id": "storage",
       "name": "Storage Section",
-      "description": "Shelving units run floor to ceiling, contents in varying states of disarray — someone moved through here in a hurry. A locked equipment crate has been pried open and emptied. On a lower shelf, overlooked in the rush, sits a small device you recognise from crew orientation: the ship's teleport return remote.",
-      "objects": ["teleport_remote"],
+      "description": "Shelving units run floor to ceiling, contents in varying states of disarray — someone moved through here in a hurry. A locked equipment crate has been pried open and emptied. On a lower shelf, overlooked in the rush, sit a small device you recognise from crew orientation and a security-issue stun baton still in its charging cradle.",
+      "objects": ["teleport_remote", "stun_baton"],
       "exits": {
         "north": {
           "room_id": "corridor",
@@ -249,8 +306,8 @@
     {
       "id": "engineering",
       "name": "Engineering Bay",
-      "description": "The engineering bay is vast and cold. Conduit runs and cable bundles web every surface. At the centre, the main generator towers in silence — a dead giant. The crystal array housing is scorched and shattered. Without raw energy crystals, the Heron is a drifting wreck.",
-      "objects": ["generator"],
+      "description": "The engineering bay is vast and cold. Conduit runs and cable bundles web every surface. At the centre, the main generator towers in silence — a dead giant. The crystal array housing is scorched and shattered. A maintenance shield leans against a support strut where the last repair crew left it.",
+      "objects": ["generator", "maintenance_shield"],
       "exits": {
         "east": {
           "room_id": "corridor",
@@ -266,9 +323,7 @@
     {
       "id": "generator_core",
       "name": "Generator Core",
-      "description": "The crystal array seats perfectly. Power floods through the ship.",
-      "end_condition": "win",
-      "end_message": "The Heron roars back to life. You did it.",
+      "description": "The innermost chamber of the generator. Conduits radiate outward from a central pedestal where the crystal array once sat. Scorch marks ring the empty mount. Everything here waits for one thing: power.",
       "exits": {
         "south": {
           "room_id": "engineering",
@@ -279,25 +334,8 @@
     {
       "id": "moon_surface",
       "name": "Moon Surface — Landing Zone",
-      "description": "You materialise on a rocky plain under an alien sky. The gas giant dominates the upper atmosphere — a swirl of amber and cream. The air is thin but breathable, carrying a faint mineral scent. A worn path leads east toward low structures in the middle distance. Behind you, a circular stone platform glows faintly: a return teleport pad, old but clearly functional.",
-      "first_visit_message": "You made it. The Heron is a glint of reflected light far above — your only way home, if you can fix it.",
-      "exits": {
-        "east": {
-          "room_id": "moon_outskirts",
-          "look_description": "A worn trail leads east toward the distant settlement."
-        },
-        "teleport": {
-          "room_id": "teleport_room",
-          "door_id": "return_gate",
-          "look_description": "The stone teleport pad pulses softly. It will send you back to the Heron — once the remote activates it."
-        }
-      }
-    },
-    {
-      "id": "moon_surface_departure",
-      "name": "Moon Surface — Landing Zone",
-      "description": "You are back on a rocky plain under an alien sky. The gas giant dominates the upper atmosphere — a swirl of amber and cream. A worn path leads east toward low structures in the middle distance. A circular stone platform glows faintly: a return teleport pad, old but clearly functional.",
-      "first_visit_message": "The Heron is a glint of reflected light far above — your only way home, if you can fix it.",
+      "description": "A rocky plain under an alien sky. The gas giant dominates the upper atmosphere — a swirl of amber and cream. The air is thin but breathable, carrying a faint mineral scent. A worn path leads east toward low structures in the middle distance. Behind you, a circular stone platform glows faintly: a return teleport pad, old but clearly functional.",
+      "first_visit_message": "You materialise on solid ground. The Heron is a glint of reflected light far above — your only way home, if you can fix it.",
       "exits": {
         "east": {
           "room_id": "moon_outskirts",
@@ -317,7 +355,7 @@
       "npcs": ["adam"],
       "exits": {
         "west": {
-          "room_id": "moon_surface_departure",
+          "room_id": "moon_surface",
           "look_description": "The landing plain and the return pad are west."
         },
         "north": {
@@ -329,9 +367,9 @@
     {
       "id": "moon_village",
       "name": "Village of the Remnants",
-      "description": "A compact settlement of low stone buildings, built with care and simple tools. The inhabitants — pale-skinned, amber-eyed — watch you with calm, unhurried curiosity. At the centre, a carved stone monument bears worn symbols that look, unmistakably, like a corporate hull marking. These people have not forgotten where their ancestors came from. Brea stands near the community fire, talking with an elder.",
+      "description": "A compact settlement of low stone buildings, built with care and simple tools. The inhabitants — pale-skinned, amber-eyed — watch you with calm, unhurried curiosity. At the centre, a carved stone monument bears worn symbols that look, unmistakably, like a corporate hull marking. These people have not forgotten where their ancestors came from. Brea stands near the community fire, talking with an elder. A wiry craftswoman works at a stone bench nearby.",
       "first_visit_message": "A child tugs at your sleeve and offers you a smooth, warm pebble with a serious expression. You take it.",
-      "npcs": ["elder_kael", "brea"],
+      "npcs": ["elder_kael", "brea", "craftsman"],
       "exits": {
         "south": {
           "room_id": "moon_outskirts",
@@ -346,7 +384,10 @@
     {
       "id": "cave_entrance",
       "name": "Cave Entrance",
-      "description": "The mouth of a cave cuts into the base of the eastern ridge. Cool air flows out, carrying a faint crystalline scent — the same mineral signature you noticed on the Heron's failed power systems. Carved symbols mark the entrance stones, worn smooth by centuries of wind. They might be warnings, or directions, or both. The main tunnel leads north, but a dense wall of crystal growth has sealed the passage shut.",
+      "description": "The mouth of a cave cuts into the base of the eastern ridge. Cool air flows out, carrying a faint crystalline scent — the same mineral signature you noticed on the Heron's failed power systems. Carved symbols mark the entrance stones, worn smooth by centuries of wind. They might be warnings, or directions, or both. The main tunnel leads north, but a dense wall of crystal growth has sealed the passage shut. A narrow side tunnel branches east into darkness.",
+      "spawns": [
+        { "npc_id": "cave_crawler", "probability": 40, "respawn": false }
+      ],
       "exits": {
         "west": {
           "room_id": "moon_village",
@@ -356,6 +397,25 @@
           "room_id": "cave_deep",
           "door_id": "crystal_barrier",
           "look_description": "The tunnel runs north, blocked completely by a wall of raw crystal growth."
+        },
+        "east": {
+          "room_id": "side_tunnel",
+          "look_description": "A narrow side passage twists east into the dark. You hear faint clicking echoes from within."
+        }
+      }
+    },
+    {
+      "id": "side_tunnel",
+      "name": "Side Tunnel",
+      "description": "A cramped, winding passage barely wide enough for one person. The walls glitter with tiny crystal deposits that provide a dim blue-green glow. The air is warmer here, and the clicking sound is louder — the scrape of chitin on stone. Brea's map warned you: the side tunnels go deep and do not return. But sometimes the crawlers nest here, and what they leave behind can be useful.",
+      "first_visit_message": "Something scuttles in the darkness ahead, then goes still. You are not alone down here.",
+      "spawns": [
+        { "npc_id": "cave_crawler", "probability": 70, "respawn": true }
+      ],
+      "exits": {
+        "west": {
+          "room_id": "cave_entrance",
+          "look_description": "The main cave entrance is back to the west."
         }
       }
     },
@@ -364,6 +424,10 @@
       "name": "Crystal Caverns",
       "description": "The tunnel opens into a chamber that stops you cold. The walls are lined with clusters of blue-white crystals, each one pulsing with its own slow light. The air hums. The frequency is the same as the Heron's power systems — you can feel it in your teeth. In the centre of the chamber, a dense freestanding cluster rises from the rock floor. Intact, raw, and exactly what you came for.",
       "first_visit_message": "The crystals brighten as you approach, their pulse quickening. They respond to something — your biosign, your warmth, or maybe just the intention behind your presence here.",
+      "spawns": [
+        { "npc_id": "cave_crawler", "probability": 60, "respawn": false },
+        { "npc_id": "cave_crawler", "probability": 40, "respawn": false }
+      ],
       "objects": ["raw_crystals"],
       "exits": {
         "south": {

@@ -10,6 +10,16 @@
  */
 
 /* -------------------------------------------------------------------------
+ * Utility macros
+ * ------------------------------------------------------------------------- */
+#define TO_LOWER(c) ((char)((c) >= 'A' && (c) <= 'Z' ? (c) + 32 : (c)))
+#define TO_UPPER(c) ((char)((c) >= 'a' && (c) <= 'z' ? (c) - 32 : (c)))
+
+/* Display name: use ->name if set, otherwise fall back to ->id.
+ * Works for Object*, NPC*, Door* (all have id/name as first two fields). */
+#define DNAME(x) ((x)->name ? (x)->name : (x)->id)
+
+/* -------------------------------------------------------------------------
  * Direction indices (used as array index into Room.exits[])
  * ------------------------------------------------------------------------- */
 #define DIR_NORTH    0
@@ -69,8 +79,9 @@ typedef struct NPC {
     int   heal_amount;    /* HP restored per Talk                       */
     int   repairer;       /* 1 = repairs gear via [R]epair              */
     /* Dynamic */
-    int   is_template;    /* 1 = prototype for spawning, not in world   */
-    int   is_dynamic;     /* 1 = id is malloc'd, must be freed          */
+    int   is_template;       /* 1 = prototype for spawning, not in world   */
+    char  template_base[64]; /* template id this instance was cloned from  */
+    int   is_dynamic;        /* 1 = id is malloc'd, must be freed          */
 } NPC;
 
 /* -------------------------------------------------------------------------

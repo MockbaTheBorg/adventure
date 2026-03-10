@@ -65,7 +65,7 @@ int dir_from_key(char c)
 {
     int i;
     /* accept both lower and upper case */
-    if (c >= 'A' && c <= 'Z') c = (char)(c + 32);
+    c = TO_LOWER(c);
     for (i = 0; i < DIR_COUNT; i++)
         if (dir_key[i] == c) return i;
     return -1;
@@ -143,7 +143,9 @@ static int load_objects(GameState *gs, const cJSON *root)
         o->damage         = json_get_int (item, "damage",         0);
         o->defense        = json_get_int (item, "defense",        0);
         o->max_durability = json_get_int (item, "max_durability", 0);
-        if (o->max_durability > 0)
+        if (o->max_durability == -1)
+            o->durability = -1;             /* indestructible */
+        else if (o->max_durability > 0)
             o->durability = json_get_int(item, "durability", o->max_durability);
         else
             o->durability = 0;
@@ -333,8 +335,13 @@ static int load_rooms(GameState *gs, const cJSON *root)
                             id, oid ? oid : "(null)");
                     continue;
                 }
-                if (r->object_count < ROOM_MAX_OBJECTS)
+                if (r->object_count < ROOM_MAX_OBJECTS) {
                     r->objects[r->object_count++] = o;
+                } else {
+                    fprintf(stderr,
+                            "warning: room '%s' exceeds object limit (%d)\n",
+                            id, ROOM_MAX_OBJECTS);
+                }
             }
         }
 
@@ -352,8 +359,13 @@ static int load_rooms(GameState *gs, const cJSON *root)
                                 id, nid ? nid : "(null)");
                         continue;
                     }
-                    if (r->npc_count < ROOM_MAX_NPCS)
+                    if (r->npc_count < ROOM_MAX_NPCS) {
                         r->npcs[r->npc_count++] = n;
+                    } else {
+                        fprintf(stderr,
+                                "warning: room '%s' exceeds NPC limit (%d)\n",
+                                id, ROOM_MAX_NPCS);
+                    }
                 }
             }
         }
@@ -366,7 +378,12 @@ static int load_rooms(GameState *gs, const cJSON *root)
                 cJSON_ArrayForEach(sp_node, sp_arr) {
                     const char *sp_npc_id;
                     SpawnEntry *se;
-                    if (r->spawn_count >= ROOM_MAX_SPAWNS) break;
+                    if (r->spawn_count >= ROOM_MAX_SPAWNS) {
+                        fprintf(stderr,
+                                "warning: room '%s' exceeds spawn limit (%d)\n",
+                                id, ROOM_MAX_SPAWNS);
+                        break;
+                    }
                     sp_npc_id = json_get_string(sp_node, "npc_id", NULL);
                     if (!sp_npc_id) continue;
                     se = &r->spawns[r->spawn_count++];
@@ -517,6 +534,45 @@ void game_free(GameState *gs)
 }
 
 /* -------------------------------------------------------------------------
+ * create_obj_from_template / create_npc_from_template
+ *
+ * Low-level cloners: copy a template struct into the next free slot,
+ * assign a specific id, and mark the result as dynamic.
+ * ------------------------------------------------------------------------- */
+
+Object *create_obj_from_template(GameState *gs, Object *tmpl,
+                                 const char *new_id)
+{
+    Object *obj;
+    if (gs->object_count >= MAX_OBJECTS) return NULL;
+    obj = &gs->objects[gs->object_count++];
+    *obj = *tmpl;
+    obj->id = dup(new_id);
+    if (!obj->id) { gs->object_count--; return NULL; }
+    obj->is_dynamic  = 1;
+    obj->is_template = 0;
+    return obj;
+}
+
+NPC *create_npc_from_template(GameState *gs, NPC *tmpl, const char *new_id)
+{
+    NPC *npc;
+    if (gs->npc_count >= MAX_NPCS) return NULL;
+    npc = &gs->npcs[gs->npc_count++];
+    *npc = *tmpl;
+    npc->id = dup(new_id);
+    if (!npc->id) { gs->npc_count--; return NULL; }
+    strncpy(npc->template_base, tmpl->id, sizeof(npc->template_base) - 1);
+    npc->template_base[sizeof(npc->template_base) - 1] = '\0';
+    npc->is_dynamic  = 1;
+    npc->is_template = 0;
+    npc->alive       = 1;
+    npc->hp          = tmpl->max_hp;
+    npc->talked      = 0;
+    return npc;
+}
+
+/* -------------------------------------------------------------------------
  * create_template_instance
  *
  * Creates a numbered dynamic copy of a template object.  The new id is
@@ -526,7 +582,6 @@ void game_free(GameState *gs)
 Object *create_template_instance(GameState *gs, const char *template_base)
 {
     Object *tmpl;
-    Object *obj;
     char    new_id[128];
     int     i, n, found;
 
@@ -540,7 +595,7 @@ Object *create_template_instance(GameState *gs, const char *template_base)
         }
     }
     if (!tmpl) return NULL;
-    if (gs->object_count >= MAX_OBJECTS) return NULL;
+    if (strlen(template_base) + 4 >= sizeof(new_id)) return NULL; /* "_NN\0" */
 
     /* Find lowest available slot number */
     for (n = 1; n < 100; n++) {
@@ -556,16 +611,7 @@ Object *create_template_instance(GameState *gs, const char *template_base)
     }
     if (n >= 100) return NULL;
 
-    /* Copy template struct, replace id with heap-allocated numbered id */
-    obj = &gs->objects[gs->object_count++];
-    *obj = *tmpl;
-    obj->id = (char *)malloc(strlen(new_id) + 1);
-    if (!obj->id) { gs->object_count--; return NULL; }
-    strcpy(obj->id, new_id);
-    obj->is_dynamic  = 1;
-    obj->is_template = 0;
-
-    return obj;
+    return create_obj_from_template(gs, tmpl, new_id);
 }
 
 /* -------------------------------------------------------------------------
@@ -580,7 +626,6 @@ Object *create_template_instance(GameState *gs, const char *template_base)
 void spawn_room_npcs(GameState *gs, Room *room)
 {
     int s, i, present, n, found;
-    size_t base_len;
     char   new_id[128];
     NPC   *tmpl;
     NPC   *npc;
@@ -593,13 +638,11 @@ void spawn_room_npcs(GameState *gs, Room *room)
 
         /* If no-respawn: check if an instance is already in the room */
         if (!se->respawn) {
-            base_len = strlen(se->npc_id);
             present  = 0;
             for (i = 0; i < room->npc_count; i++) {
                 NPC *rn = room->npcs[i];
-                if (strncmp(rn->id, se->npc_id, base_len) == 0 &&
-                    rn->id[base_len] == '_' &&
-                    rn->is_dynamic) {
+                if (rn->is_dynamic &&
+                    strcmp(rn->template_base, se->npc_id) == 0) {
                     present = 1;
                     break;
                 }
@@ -617,8 +660,8 @@ void spawn_room_npcs(GameState *gs, Room *room)
             }
         }
         if (!tmpl) continue;
-        if (gs->npc_count >= MAX_NPCS) continue;
         if (room->npc_count >= ROOM_MAX_NPCS) continue;
+        if (strlen(se->npc_id) + 4 >= sizeof(new_id)) continue; /* "_NN\0" */
 
         /* Find lowest available slot number */
         for (n = 1; n < 100; n++) {
@@ -634,17 +677,8 @@ void spawn_room_npcs(GameState *gs, Room *room)
         }
         if (n >= 100) continue;
 
-        /* Copy template, replace id */
-        npc = &gs->npcs[gs->npc_count++];
-        *npc = *tmpl;
-        npc->id = (char *)malloc(strlen(new_id) + 1);
-        if (!npc->id) { gs->npc_count--; continue; }
-        strcpy(npc->id, new_id);
-        npc->is_dynamic  = 1;
-        npc->is_template = 0;
-        npc->alive       = 1;
-        npc->hp          = tmpl->max_hp;
-        npc->talked      = 0;
+        npc = create_npc_from_template(gs, tmpl, new_id);
+        if (!npc) continue;
 
         room->npcs[room->npc_count++] = npc;
     }

@@ -53,8 +53,8 @@ void combat_drop_loot(GameState *gs, NPC *npc)
     if (r->object_count < ROOM_MAX_OBJECTS) {
         r->objects[r->object_count++] = o;
         printf("> %s dropped: %s\n",
-               npc->name  ? npc->name  : npc->id,
-               o->name    ? o->name    : o->id);
+               DNAME(npc),
+               DNAME(o));
     }
 }
 
@@ -77,7 +77,7 @@ void combat_attack(GameState *gs, NPC *npc)
     player_damage = 5; /* base: unarmed */
 
     if (weapon) {
-        weapon_name = weapon->name ? weapon->name : weapon->id;
+        weapon_name = DNAME(weapon);
 
         if (weapon->durability == -1)
             factor = 1.0;
@@ -100,17 +100,17 @@ void combat_attack(GameState *gs, NPC *npc)
     if (npc->hp < 0) npc->hp = 0;
 
     printf("You attack %s with %s.\n",
-           npc->name ? npc->name : npc->id,
+           DNAME(npc),
            weapon_name);
     printf("> You deal %d damage. (%s: %d/%d HP)\n",
            player_damage,
-           npc->name ? npc->name : npc->id,
+           DNAME(npc),
            npc->hp, npc->max_hp);
 
     if (npc->hp <= 0) {
         npc->alive = 0;
         printf("> %s has been defeated!\n",
-               npc->name ? npc->name : npc->id);
+               DNAME(npc));
         combat_drop_loot(gs, npc);
         return;
     }
@@ -144,7 +144,7 @@ void combat_attack(GameState *gs, NPC *npc)
     if (gs->player_hp < 0) gs->player_hp = 0;
 
     printf("> %s strikes back! You take %d damage. (You: %d/100 HP)\n",
-           npc->name ? npc->name : npc->id,
+           DNAME(npc),
            npc_damage,
            gs->player_hp);
 

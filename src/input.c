@@ -118,6 +118,63 @@ int input_direction(const char *prompt, const Room *r)
 }
 
 /* -------------------------------------------------------------------------
+ * NPC picker
+ * ------------------------------------------------------------------------- */
+
+NPC *input_pick_npc(Room *r, const char *prompt, const char *empty_msg,
+                    int *status)
+{
+    NPC *alive[ROOM_MAX_NPCS];
+    int  count, i, shown;
+    char c;
+
+    count = 0;
+    for (i = 0; i < r->npc_count; i++)
+        if (r->npcs[i]->alive)
+            alive[count++] = r->npcs[i];
+
+    if (count == 0) {
+        printf("%s\n", empty_msg);
+        *status = -1;
+        return NULL;
+    }
+
+    if (count == 1) {
+        *status = 1;
+        return alive[0];
+    }
+
+    printf("\n");
+    ansi_bold();
+    printf("%s\n", prompt);
+    ansi_reset();
+    shown = (count < 26) ? count : 26;
+    for (i = 0; i < shown; i++) {
+        printf("  [%c] %s", 'a' + i, DNAME(alive[i]));
+        if (alive[i]->max_hp > 0)
+            printf(" (%d/%d HP)", alive[i]->hp, alive[i]->max_hp);
+        printf("\n");
+    }
+    printf("  [0] Cancel\n> ");
+    fflush(stdout);
+
+    c = term_getkey();
+    if (c == 27) {
+        printf("cancelled\n");
+        *status = INPUT_ESC;
+        return NULL;
+    }
+    c = TO_LOWER(c);
+    printf("%c\n", c);
+    if (c == '0' || c < 'a' || c > 'z' || c - 'a' >= shown) {
+        *status = -1;
+        return NULL;
+    }
+    *status = 1;
+    return alive[c - 'a'];
+}
+
+/* -------------------------------------------------------------------------
  * Object picker
  * ------------------------------------------------------------------------- */
 
@@ -142,8 +199,7 @@ int input_pick_object(Object **objects, int count,
     /* Support up to 26 items via a-z */
     shown = (count < 26) ? count : 26;
     for (i = 0; i < shown; i++) {
-        printf("  [%c] %s\n", 'a' + i,
-               objects[i]->name ? objects[i]->name : objects[i]->id);
+        printf("  [%c] %s\n", 'a' + i, DNAME(objects[i]));
     }
     printf("  [0] Cancel\n");
     printf("> ");
@@ -156,8 +212,7 @@ int input_pick_object(Object **objects, int count,
         return INPUT_ESC;
     }
 
-    /* normalise to lower case */
-    if (c >= 'A' && c <= 'Z') c = (char)(c + 32);
+    c = TO_LOWER(c);
     printf("%c\n", c);
 
     if (c == '0') return -1;

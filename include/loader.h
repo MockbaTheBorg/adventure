@@ -29,6 +29,22 @@ void game_free(GameState *gs);
 Object *create_template_instance(GameState *gs, const char *template_base);
 
 /*
+ * create_obj_from_template - Low-level: clone a template Object with a
+ * specific id.  Returns a pointer to the new entry in gs->objects[],
+ * or NULL on failure.  Used by create_template_instance and game_resume.
+ */
+Object *create_obj_from_template(GameState *gs, Object *tmpl,
+                                 const char *new_id);
+
+/*
+ * create_npc_from_template - Low-level: clone a template NPC with a
+ * specific id.  Resets runtime state (alive, hp, talked).  Returns a
+ * pointer to the new entry in gs->npcs[], or NULL on failure.
+ * Used by spawn_room_npcs and game_resume.
+ */
+NPC *create_npc_from_template(GameState *gs, NPC *tmpl, const char *new_id);
+
+/*
  * spawn_room_npcs - Roll the spawn table for room on room entry.
  * For each SpawnEntry, if the probability roll succeeds and the NPC is not
  * already present, a dynamic instance is created and added to the room.

@@ -62,21 +62,11 @@ int game_save(const GameState *gs, const char *path)
             const Room *room = &gs->rooms[r];
             for (k = 0; k < room->npc_count; k++) {
                 if (room->npcs[k] == &gs->npcs[i]) {
-                    /* Derive template id: strip "_NN" suffix */
-                    char tmpl_id[128];
-                    const char *p;
-                    size_t len;
-                    p   = strrchr(gs->npcs[i].id, '_');
-                    len = p ? (size_t)(p - gs->npcs[i].id)
-                            : strlen(gs->npcs[i].id);
-                    if (len >= sizeof(tmpl_id)) len = sizeof(tmpl_id) - 1;
-                    strncpy(tmpl_id, gs->npcs[i].id, len);
-                    tmpl_id[len] = '\0';
-
                     dyn_entry = cJSON_CreateObject();
                     cJSON_AddStringToObject(dyn_entry, "id",
                                            gs->npcs[i].id);
-                    cJSON_AddStringToObject(dyn_entry, "template", tmpl_id);
+                    cJSON_AddStringToObject(dyn_entry, "template",
+                                           gs->npcs[i].template_base);
                     cJSON_AddStringToObject(dyn_entry, "room", room->id);
                     cJSON_AddItemToArray(dyn_npcs_arr, dyn_entry);
                     break;
@@ -185,16 +175,13 @@ int game_resume(GameState *gs, const char *path)
     arr = cJSON_GetObjectItemCaseSensitive(root, "dynamic_objects");
     if (arr && cJSON_IsArray(arr)) {
         cJSON_ArrayForEach(item, arr) {
-            const char *dyn_id  = json_get_string(item, "id",            NULL);
-            const char *tb      = json_get_string(item, "template_base", NULL);
-            Object     *tmpl    = NULL;
-            Object     *obj;
+            const char *dyn_id = json_get_string(item, "id",            NULL);
+            const char *tb     = json_get_string(item, "template_base", NULL);
+            Object     *tmpl   = NULL;
             int         k;
 
             if (!dyn_id || !tb) continue;
-            if (gs->object_count >= MAX_OBJECTS) continue;
 
-            /* find template */
             for (k = 0; k < gs->object_count; k++) {
                 if (gs->objects[k].is_template &&
                     strcmp(gs->objects[k].id, tb) == 0) {
@@ -203,14 +190,7 @@ int game_resume(GameState *gs, const char *path)
                 }
             }
             if (!tmpl) continue;
-
-            obj = &gs->objects[gs->object_count++];
-            *obj = *tmpl;
-            obj->id = (char *)malloc(strlen(dyn_id) + 1);
-            if (!obj->id) { gs->object_count--; continue; }
-            strcpy(obj->id, dyn_id);
-            obj->is_dynamic  = 1;
-            obj->is_template = 0;
+            create_obj_from_template(gs, tmpl, dyn_id);
         }
     }
 
@@ -227,7 +207,6 @@ int game_resume(GameState *gs, const char *path)
             int         k;
 
             if (!dyn_id || !tmpl_id) continue;
-            if (gs->npc_count >= MAX_NPCS) continue;
 
             for (k = 0; k < gs->npc_count; k++) {
                 if (gs->npcs[k].is_template &&
@@ -238,15 +217,9 @@ int game_resume(GameState *gs, const char *path)
             }
             if (!tmpl) continue;
 
-            npc = &gs->npcs[gs->npc_count++];
-            *npc = *tmpl;
-            npc->id = (char *)malloc(strlen(dyn_id) + 1);
-            if (!npc->id) { gs->npc_count--; continue; }
-            strcpy(npc->id, dyn_id);
-            npc->is_dynamic  = 1;
-            npc->is_template = 0;
+            npc = create_npc_from_template(gs, tmpl, dyn_id);
+            if (!npc) continue;
 
-            /* Place in room */
             room = find_room(gs, rid);
             if (room && room->npc_count < ROOM_MAX_NPCS)
                 room->npcs[room->npc_count++] = npc;

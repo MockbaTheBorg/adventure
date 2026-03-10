@@ -71,7 +71,7 @@ static void game_loop(GameState *gs)
         print_prompt();
         c = term_getkey();
         /* Echo the key so the player sees what they pressed */
-        printf("%c\n", (char)((c >= 'a' && c <= 'z') ? c - 32 : c));
+        printf("%c\n", TO_UPPER(c));
 
         if (!cmd_dispatch(gs, c))
             printf("Unknown command. Press a highlighted key.\n");

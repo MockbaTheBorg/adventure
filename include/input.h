@@ -79,4 +79,20 @@ int input_direction(const char *prompt, const Room *r);
 int input_pick_object(Object **objects, int count,
                       const char *prompt, const char *empty_msg);
 
+/*
+ * input_pick_npc - Pick an alive NPC from the current room.
+ *
+ * Builds the alive-NPC list internally.  If exactly one is alive it is
+ * returned immediately (no menu).  If multiple are alive, a lettered
+ * menu is shown.
+ *
+ * prompt    - header above the list (e.g. "Talk to whom?")
+ * empty_msg - printed when no alive NPC exists (returns NULL, *status = -1)
+ * status    - set to 1 on success, -1 on empty/cancel, INPUT_ESC on ESC
+ *
+ * Returns the chosen NPC pointer, or NULL on cancel / empty.
+ */
+NPC *input_pick_npc(Room *r, const char *prompt, const char *empty_msg,
+                    int *status);
+
 #endif /* INPUT_H */
