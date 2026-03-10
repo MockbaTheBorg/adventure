@@ -1,0 +1,376 @@
+{
+  "npcs": [
+    {
+      "id": "elder_kael",
+      "name": "Elder Kael",
+      "description": "A tall figure with pale silvery skin and deep-set amber eyes. He moves with unhurried calm, carrying a carved staff of dark moon-stone.",
+      "dialogue": "You come from the sky-vessel. We have watched it drift for many cycles. Your companions arrived first — the impatient one and the quiet woman. The quiet woman chose to stay. The impatient one waits, but not patiently. I sense you seek the humming stones. Take my digging tool — the old caves beneath the eastern ridge hold what you need. Our ancestors once drew power from those crystals. Perhaps yours will too.",
+      "after_dialogue": "The crystals of the deep caves powered our ancestors' machines long ago. They may power yours again. Be careful of the side tunnels — they go deep and do not return.",
+      "gives": "pickaxe"
+    },
+    {
+      "id": "brea",
+      "name": "Brea",
+      "description": "Your crewmate — the Heron's navigation engineer. She looks healthier than you remember, her usual edge replaced by something like peace.",
+      "dialogue": "You made it. I wasn't sure anyone else would come. I have to be honest with you — I'm not going back. Kael's people took us in. I found something here I never had out there. The ship never felt like home. Here does. Take this cave map — I scouted the eastern ridge before I made my decision. The deepest chamber has a cluster of raw energy crystals. They should interface with the Heron's generator array.",
+      "after_dialogue": "I know you think I'm abandoning you. Maybe I am. The choice is made. Good luck with the Heron.",
+      "gives": "cave_map"
+    },
+    {
+      "id": "adam",
+      "name": "Adam",
+      "description": "Your second-in-command. Dishevelled, arms crossed, wearing an expression of barely-contained impatience.",
+      "dialogue": "Finally! I thought I'd be stuck in this place forever. Listen — I've been thinking. Once you fix the Heron, I get the captain's chair. Harmon is gone, the others scattered. Seniority — it's only fair. So get those crystals from the caves east of the village, fix the generator, and we get out of here. I am not spending another night breathing this air.",
+      "after_dialogue": "Are you still here? The caves are east of the village. Crystals. Generator. Ship. Let's go."
+    }
+  ],
+
+  "objects": [
+    {
+      "id": "medlocker",
+      "name": "Medical Locker",
+      "description": "A wall-mounted metal locker with a red cross emblem. The latch hangs open.",
+      "pickupable": false,
+      "openable": true,
+      "contains": ["keycard", "medical_log"],
+      "message": "The locker is bolted to the wall."
+    },
+    {
+      "id": "keycard",
+      "name": "Crew Keycard",
+      "description": "A standard crew access card. The name reads 'Dr. M. Garney'. His card — left behind. It should still work on the interior locks.",
+      "pickupable": true,
+      "use_target": "engineering_door",
+      "message": "The keycard doesn't work on that."
+    },
+    {
+      "id": "medical_log",
+      "name": "Medical Log",
+      "description": "Dr. Garney's last entry: 'Power failure spreading through all decks. Harmon ordered evacuation. Pod 4 is showing hull stress — I raised it, but no one listened. Revived the engineer as last resort — maybe they can do something. God help us all.' Dated three standard days ago.",
+      "pickupable": true
+    },
+    {
+      "id": "patient_chart",
+      "name": "Patient Chart",
+      "description": "Your own medical chart, clipped to the wall beside your bunk. Diagnosis: induced hibernation — emergency revival protocol, final stage. Garney's handwriting. He woke you. He didn't make it out himself.",
+      "pickupable": false,
+      "message": "It's mounted to the wall."
+    },
+    {
+      "id": "ship_log",
+      "name": "Captain's Log Terminal",
+      "description": "The bridge terminal flickers on the last dregs of backup power. Final entry: 'Cascade power failure — source still unknown. Generator crystal array shattered in the surge. Cannot repair without raw crystals. Orbit is decaying toward the moon. Moon appears breathable. Ordering evacuation to the surface — we have no other options. God willing, help will come, or we will find a way back.' — Captain Harmon.",
+      "pickupable": false,
+      "message": "The terminal is fixed to the bridge console."
+    },
+    {
+      "id": "cracked_pod",
+      "name": "Lifeboat Pod — Bay 4",
+      "description": "Pod 4. Garney's pod. A jagged stress fracture runs the full length of the starboard seam — it failed in the launch tube. Through the cracked viewport you can see Garney slumped in the harness, still strapped in. He raised the alarm about this pod. No one listened. You stand there for a moment longer than you mean to.",
+      "pickupable": false,
+      "message": "You can't move it."
+    },
+    {
+      "id": "teleport_remote",
+      "name": "Teleport Remote",
+      "description": "A palm-sized device with a single amber indicator light. Stamped on the back: 'HERON TELEPORT SYSTEMS — RETURN UNIT'. This locks to the ship's teleporter signal. Press it on any compatible pad within range and it will beam you back.",
+      "pickupable": true,
+      "use_target": "return_gate",
+      "message": "There's nothing nearby the remote can link to."
+    },
+    {
+      "id": "generator",
+      "name": "Main Generator",
+      "description": "The Heron's primary power generator — a cylindrical unit the size of a small room, cold and silent. The crystal array housing is shattered, scorched around the edges. A jagged slot where the energy crystal cluster should be. Without crystals, this ship is dead.",
+      "pickupable": false,
+      "message": "It's enormous. And broken."
+    },
+    {
+      "id": "raw_crystals",
+      "name": "Raw Energy Crystals",
+      "description": "A dense cluster of translucent blue-white crystals that pulse with a faint inner light. They hum very slightly against your palm, as if they know what they're for. These will fit the Heron's generator array.",
+      "pickupable": true,
+      "single_use": true,
+      "use_target": "generator_slot",
+      "on_use_end": "win",
+      "end_message": "You seat the crystal cluster into the generator's housing. The fit is exact. For a moment, nothing happens.\n\nThen a deep vibration climbs through the deck plates. Emergency lighting shifts from red to white. You hear the life support fans spin up, the climate system cycle, navigation computers rebooting one by one. The Heron is alive.\n\nAdam is already in the captain's chair when you reach the bridge. You let him have it — it doesn't matter anymore. Brea made her choice. You hope she's happy.\n\nAs the Heron breaks orbit, you take one last look at the pale moon below. Somewhere down there, a civilisation that survived centuries of isolation carries on. Their crystals are powering a ship among the stars.\n\nYou point the bow toward open space and engage the drive.",
+      "message": "The crystals need to go into the generator's housing."
+    },
+    {
+      "id": "pickaxe",
+      "name": "Moon-Stone Pickaxe",
+      "description": "A sturdy pickaxe, its head carved from dense dark moon-stone. Elder Kael's gift. Well-balanced and heavy — made for serious work.",
+      "pickupable": true,
+      "single_use": true,
+      "use_target": "crystal_barrier",
+      "message": "The pickaxe isn't useful here."
+    },
+    {
+      "id": "cave_map",
+      "name": "Cave Map",
+      "description": "A rough sketch on tanned hide, drawn in charcoal. The cave entrance, a winding main tunnel, and a large chamber marked with crystal symbols. An arrow points north, and in a neat hand beside it: 'deepest chamber — straight in, ignore the side tunnels.' Brea's writing.",
+      "pickupable": true
+    }
+  ],
+
+  "doors": [
+    {
+      "id": "engineering_door",
+      "name": "Engineering Hatch",
+      "description": "A heavy blast-rated hatch with an electronic keycard reader. The reader shows a dull amber standby light.",
+      "locked": true,
+      "key_id": "keycard",
+      "message": "The engineering hatch is sealed. You need a crew keycard to open it."
+    },
+    {
+      "id": "generator_slot",
+      "name": "Generator Crystal Housing",
+      "description": "The shattered crystal array housing at the core of the generator. An empty, scorched slot waits for the crystal cluster that will bring the ship back to life.",
+      "locked": true,
+      "key_id": "raw_crystals",
+      "message": "The crystal housing is empty. You need raw energy crystals to restore the generator."
+    },
+    {
+      "id": "crystal_barrier",
+      "name": "Crystal Wall",
+      "description": "The tunnel ahead is blocked floor to ceiling by a dense formation of raw crystals, grown shut over centuries. Beautiful, and completely impassable without something to break them.",
+      "locked": true,
+      "break_key_id": "pickaxe",
+      "break_message": "You swing the moon-stone pickaxe with both hands. The crystal wall shatters with a ringing crash, shards skittering across the cave floor. The passage north is open."
+    },
+    {
+      "id": "return_gate",
+      "name": "Return Teleport Pad",
+      "description": "A circular stone platform ringed with carved channels — old technology, but unmistakably functional. The activation panel is dark and waiting.",
+      "locked": true,
+      "key_id": "teleport_remote",
+      "message": "The return pad is inert. You'll need the ship's teleport remote to lock onto the Heron's signal and activate it."
+    }
+  ],
+
+  "rooms": [
+    {
+      "id": "start",
+      "name": "Ship Infirmary",
+      "description": "You wake to the hum of a failing system. The infirmary is dim, lit only by a red emergency strip along the floor. Medical equipment hangs silent; screens are dark. Through a small porthole, a pale moon fills the view — far closer than it should be. The ship is deep in low orbit and losing altitude.",
+      "first_visit_message": "A recorded voice crackles through a ceiling speaker: 'Emergency revival complete. Warning: ship power critical. Estimated time to total failure: forty minutes.' The voice is Garney's.",
+      "objects": ["medlocker", "patient_chart"],
+      "exits": {
+        "north": {
+          "room_id": "bridge",
+          "look_description": "A short passage leads to the darkened bridge."
+        },
+        "south": {
+          "room_id": "corridor",
+          "look_description": "The main corridor stretches south under failing emergency strips."
+        }
+      }
+    },
+    {
+      "id": "bridge",
+      "name": "Bridge",
+      "description": "The bridge is cold and still. Most consoles are dead. Only the captain's log terminal flickers, drawing on the last of the backup cell. The captain's chair is empty. A viewport frames the gas giant filling half the sky, the moon drifting slowly below.",
+      "objects": ["ship_log"],
+      "exits": {
+        "south": {
+          "room_id": "start",
+          "look_description": "The infirmary passage leads south."
+        }
+      }
+    },
+    {
+      "id": "corridor",
+      "name": "Main Corridor",
+      "description": "The ship's central corridor. Emergency lighting casts a weak red tint over everything. A dropped jacket and an overturned food container tell the story of a fast evacuation. Hatches lead in every direction.",
+      "exits": {
+        "north": {
+          "room_id": "start",
+          "look_description": "The infirmary is north."
+        },
+        "east": {
+          "room_id": "lifeboat_bay",
+          "look_description": "The lifeboat bay doors stand ajar to the east."
+        },
+        "west": {
+          "room_id": "engineering",
+          "door_id": "engineering_door",
+          "look_description": "The engineering hatch is to the west. A keycard reader glows amber on the frame."
+        },
+        "south": {
+          "room_id": "storage",
+          "look_description": "A storage section lies south."
+        }
+      }
+    },
+    {
+      "id": "lifeboat_bay",
+      "name": "Lifeboat Bay",
+      "description": "Four launch cradles line the curved bay wall. Three are empty, blast-hatches blown outward and cold. The fourth cradle still holds a pod — but it will never fly again. A status display reads: PODS LAUNCHED: 3 / PODS FAILED: 1.",
+      "objects": ["cracked_pod"],
+      "exits": {
+        "west": {
+          "room_id": "corridor",
+          "look_description": "The main corridor is back to the west."
+        }
+      }
+    },
+    {
+      "id": "storage",
+      "name": "Storage Section",
+      "description": "Shelving units run floor to ceiling, contents in varying states of disarray — someone moved through here in a hurry. A locked equipment crate has been pried open and emptied. On a lower shelf, overlooked in the rush, sits a small device you recognise from crew orientation: the ship's teleport return remote.",
+      "objects": ["teleport_remote"],
+      "exits": {
+        "north": {
+          "room_id": "corridor",
+          "look_description": "The main corridor is back north."
+        },
+        "south": {
+          "room_id": "teleport_room",
+          "look_description": "A hatch leads south to the teleport pod chamber."
+        }
+      }
+    },
+    {
+      "id": "teleport_room",
+      "name": "Teleport Pod Chamber",
+      "description": "A circular chamber housing the ship's single teleport pod — a shimmering disc set into the floor, ringed by guidance pylons that hum on emergency power. A status board above reads: TARGET LOCKED — MOON SURFACE — READY. The pod is operational. This is your way down.",
+      "first_visit_message": "The guidance pylons brighten as you enter, as if the system was waiting for someone to arrive.",
+      "exits": {
+        "north": {
+          "room_id": "storage",
+          "look_description": "The storage section is back north."
+        },
+        "teleport": {
+          "room_id": "moon_surface",
+          "look_description": "The teleport pad glows steady blue, aimed at the moon below. Step on it and you'll go down."
+        }
+      }
+    },
+    {
+      "id": "engineering",
+      "name": "Engineering Bay",
+      "description": "The engineering bay is vast and cold. Conduit runs and cable bundles web every surface. At the centre, the main generator towers in silence — a dead giant. The crystal array housing is scorched and shattered. Without raw energy crystals, the Heron is a drifting wreck.",
+      "objects": ["generator"],
+      "exits": {
+        "east": {
+          "room_id": "corridor",
+          "look_description": "The corridor hatch leads east."
+        },
+        "north": {
+          "room_id": "generator_core",
+          "door_id": "generator_slot",
+          "look_description": "The generator's crystal housing slot — a scorched, empty chamber at the heart of the machine."
+        }
+      }
+    },
+    {
+      "id": "generator_core",
+      "name": "Generator Core",
+      "description": "The crystal array seats perfectly. Power floods through the ship.",
+      "end_condition": "win",
+      "end_message": "The Heron roars back to life. You did it.",
+      "exits": {
+        "south": {
+          "room_id": "engineering",
+          "look_description": "The engineering bay is south."
+        }
+      }
+    },
+    {
+      "id": "moon_surface",
+      "name": "Moon Surface — Landing Zone",
+      "description": "You materialise on a rocky plain under an alien sky. The gas giant dominates the upper atmosphere — a swirl of amber and cream. The air is thin but breathable, carrying a faint mineral scent. A worn path leads east toward low structures in the middle distance. Behind you, a circular stone platform glows faintly: a return teleport pad, old but clearly functional.",
+      "first_visit_message": "You made it. The Heron is a glint of reflected light far above — your only way home, if you can fix it.",
+      "exits": {
+        "east": {
+          "room_id": "moon_outskirts",
+          "look_description": "A worn trail leads east toward the distant settlement."
+        },
+        "teleport": {
+          "room_id": "teleport_room",
+          "door_id": "return_gate",
+          "look_description": "The stone teleport pad pulses softly. It will send you back to the Heron — once the remote activates it."
+        }
+      }
+    },
+    {
+      "id": "moon_surface_departure",
+      "name": "Moon Surface — Landing Zone",
+      "description": "You are back on a rocky plain under an alien sky. The gas giant dominates the upper atmosphere — a swirl of amber and cream. A worn path leads east toward low structures in the middle distance. A circular stone platform glows faintly: a return teleport pad, old but clearly functional.",
+      "first_visit_message": "The Heron is a glint of reflected light far above — your only way home, if you can fix it.",
+      "exits": {
+        "east": {
+          "room_id": "moon_outskirts",
+          "look_description": "A worn trail leads east toward the distant settlement."
+        },
+        "teleport": {
+          "room_id": "teleport_room",
+          "door_id": "return_gate",
+          "look_description": "The stone teleport pad pulses softly. It will send you back to the Heron — once the remote activates it."
+        }
+      }
+    },
+    {
+      "id": "moon_outskirts",
+      "name": "Settlement Outskirts",
+      "description": "The ragged edge of the settlement. Scrubby moon-vegetation pushes through cracked rock. Crude lean-tos and spent fire rings mark the outer boundary of wherever people live here. A figure in a rumpled flight jacket sits on a boulder, staring at nothing in particular.",
+      "npcs": ["adam"],
+      "exits": {
+        "west": {
+          "room_id": "moon_surface_departure",
+          "look_description": "The landing plain and the return pad are west."
+        },
+        "north": {
+          "room_id": "moon_village",
+          "look_description": "The settlement proper is north — low stone buildings and the glow of a communal fire."
+        }
+      }
+    },
+    {
+      "id": "moon_village",
+      "name": "Village of the Remnants",
+      "description": "A compact settlement of low stone buildings, built with care and simple tools. The inhabitants — pale-skinned, amber-eyed — watch you with calm, unhurried curiosity. At the centre, a carved stone monument bears worn symbols that look, unmistakably, like a corporate hull marking. These people have not forgotten where their ancestors came from. Brea stands near the community fire, talking with an elder.",
+      "first_visit_message": "A child tugs at your sleeve and offers you a smooth, warm pebble with a serious expression. You take it.",
+      "npcs": ["elder_kael", "brea"],
+      "exits": {
+        "south": {
+          "room_id": "moon_outskirts",
+          "look_description": "The settlement outskirts are south."
+        },
+        "east": {
+          "room_id": "cave_entrance",
+          "look_description": "A rocky ridge rises to the east, broken by a dark cave opening at its base."
+        }
+      }
+    },
+    {
+      "id": "cave_entrance",
+      "name": "Cave Entrance",
+      "description": "The mouth of a cave cuts into the base of the eastern ridge. Cool air flows out, carrying a faint crystalline scent — the same mineral signature you noticed on the Heron's failed power systems. Carved symbols mark the entrance stones, worn smooth by centuries of wind. They might be warnings, or directions, or both. The main tunnel leads north, but a dense wall of crystal growth has sealed the passage shut.",
+      "exits": {
+        "west": {
+          "room_id": "moon_village",
+          "look_description": "The village fires glow to the west."
+        },
+        "north": {
+          "room_id": "cave_deep",
+          "door_id": "crystal_barrier",
+          "look_description": "The tunnel runs north, blocked completely by a wall of raw crystal growth."
+        }
+      }
+    },
+    {
+      "id": "cave_deep",
+      "name": "Crystal Caverns",
+      "description": "The tunnel opens into a chamber that stops you cold. The walls are lined with clusters of blue-white crystals, each one pulsing with its own slow light. The air hums. The frequency is the same as the Heron's power systems — you can feel it in your teeth. In the centre of the chamber, a dense freestanding cluster rises from the rock floor. Intact, raw, and exactly what you came for.",
+      "first_visit_message": "The crystals brighten as you approach, their pulse quickening. They respond to something — your biosign, your warmth, or maybe just the intention behind your presence here.",
+      "objects": ["raw_crystals"],
+      "exits": {
+        "south": {
+          "room_id": "cave_entrance",
+          "look_description": "The broken crystal rubble leads back south to the cave entrance."
+        }
+      }
+    }
+  ]
+}

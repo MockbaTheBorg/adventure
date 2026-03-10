@@ -1,0 +1,242 @@
+{
+  "win_condition": ["gold_key", "old_map"],
+  "win_message": "With the gold key and the ancient map in hand, you have uncovered the estate's secrets. The treasure is yours!",
+
+  "npcs": [
+    {
+      "id": "old_hermit",
+      "name": "Old Hermit",
+      "description": "A weathered man in a tattered coat. He watches you with tired eyes.",
+      "dialogue": "Aye, I've been tending this garden a long time. Here — take my axe. There's a barricade blocking the north cellar passage. I never had the strength to break it myself.",
+      "after_dialogue": "I have nothing more to say. The axe should do the trick.",
+      "gives": "axe"
+    }
+  ],
+
+  "objects": [
+    {
+      "id": "iron_key",
+      "name": "Iron Key",
+      "description": "A heavy, rust-flecked iron key. It looks like it would fit a cellar lock.",
+      "pickupable": true,
+      "single_use": true,
+      "use_target": "cellar_door",
+      "message": "The key crumbles to dust as the lock turns."
+    },
+    {
+      "id": "gold_key",
+      "name": "Gold Key",
+      "description": "A slender gold key engraved with a crest. Clearly made for something important.",
+      "pickupable": true,
+      "use_target": "vault_door"
+    },
+    {
+      "id": "lantern",
+      "name": "Brass Lantern",
+      "description": "An old oil lantern. It's already lit, casting a warm glow.",
+      "pickupable": true
+    },
+    {
+      "id": "chest",
+      "name": "Wooden Chest",
+      "description": "A battered old chest with a brass latch. It might contain something.",
+      "pickupable": false,
+      "openable": true,
+      "contains": ["old_map"],
+      "message": "The chest is far too heavy to carry."
+    },
+    {
+      "id": "old_map",
+      "name": "Old Map",
+      "description": "A yellowed map of the estate. The vault is marked with a red X.",
+      "pickupable": true
+    },
+    {
+      "id": "note",
+      "name": "Crumpled Note",
+      "description": "The note reads: 'The gold key is hidden beneath the garden stone. The map is locked in the chest.'",
+      "pickupable": true
+    },
+    {
+      "id": "axe",
+      "name": "Woodcutter's Axe",
+      "description": "A heavy axe with a worn wooden handle. It looks capable of breaking through light wood.",
+      "pickupable": true,
+      "single_use": true,
+      "use_target": "wooden_barricade",
+      "message": "The axe doesn't seem useful here."
+    },
+    {
+      "id": "cursed_gem",
+      "name": "Cursed Gem",
+      "description": "A deep-red gem that pulses faintly, like a slow heartbeat. Something about it feels deeply wrong.",
+      "pickupable": true,
+      "on_pickup_end": "lose",
+      "end_message": "The moment you close your fingers around the gem, a cold fire races up your arm. The cellar spins and goes black. You never leave.",
+      "message": "An ominous gem that seems to pull at your hand."
+    }
+  ],
+
+  "doors": [
+    {
+      "id": "cellar_door",
+      "name": "Cellar Door",
+      "description": "A thick oak door set into the floor. A sturdy iron lock keeps it shut.",
+      "locked": true,
+      "key_id": "iron_key",
+      "message": "The cellar door is locked. You need the iron key to open it."
+    },
+    {
+      "id": "vault_door",
+      "name": "Vault Door",
+      "description": "A heavy iron vault door. Only a gold key could open it.",
+      "locked": true,
+      "key_id": "gold_key",
+      "message": "The vault door won't budge. You need the gold key."
+    },
+    {
+      "id": "wooden_barricade",
+      "name": "Wooden Barricade",
+      "description": "A rough barricade of old planks nailed across the passage. It looks breakable.",
+      "locked": true,
+      "break_key_id": "axe",
+      "break_message": "You swing the axe with full force. The planks crack and splinter, opening the passage.",
+      "message": "The barricade blocks the way north. You need something to break it."
+    }
+  ],
+
+  "rooms": [
+    {
+      "id": "start",
+      "name": "Entrance Hall",
+      "description": "You stand in a dusty entrance hall. Faded portraits line the walls. A staircase leads up, and a corridor stretches to the north.",
+      "first_visit_message": "A voice whispers: 'Find the vault. The treasure is yours — if you dare.'",
+      "objects": ["lantern", "note"],
+      "exits": {
+        "north": {
+          "room_id": "hallway",
+          "look_description": "A long corridor leads north, lit by grimy skylights."
+        },
+        "up": {
+          "room_id": "rooftop",
+          "look_description": "A creaking staircase winds upward toward pale daylight."
+        }
+      }
+    },
+    {
+      "id": "hallway",
+      "name": "Long Hallway",
+      "description": "A corridor stretches east and west. A trapdoor in the floor is secured by a heavy iron lock.",
+      "objects": ["chest"],
+      "exits": {
+        "south": {
+          "room_id": "start",
+          "look_description": "The entrance hall is visible through the dusty air."
+        },
+        "east": {
+          "room_id": "garden",
+          "look_description": "Pale light filters through a warped door leading outside."
+        },
+        "west": {
+          "room_id": "vault_room",
+          "look_description": "A heavy iron door stands at the end of the corridor.",
+          "door_id": "vault_door"
+        },
+        "down": {
+          "room_id": "cellar",
+          "door_id": "cellar_door",
+          "look_description": "A trapdoor leads down into darkness."
+        }
+      }
+    },
+    {
+      "id": "garden",
+      "name": "Overgrown Garden",
+      "description": "Weeds push through cracked flagstones. A large flat stone sits near the centre of the garden. To the west the house looms. An old hermit sits on a stone bench nearby.",
+      "objects": ["gold_key"],
+      "npcs": ["old_hermit"],
+      "exits": {
+        "west": {
+          "room_id": "hallway",
+          "look_description": "The dark hallway waits to the west."
+        },
+        "teleport": {
+          "room_id": "rooftop",
+          "look_description": "A shimmering circle of light pulses on the flagstones — a teleporter."
+        }
+      }
+    },
+    {
+      "id": "cellar",
+      "name": "Cellar",
+      "description": "A damp stone cellar. Barrels line the walls and the smell of old wine hangs in the air. A key glints in the corner. Something else catches your eye too — a red gem half-buried in the dirt. A crude wooden barricade blocks the passage to the north.",
+      "first_visit_message": "The trapdoor slams shut above you. You'll need to unlock it from this side too.",
+      "objects": ["iron_key", "cursed_gem"],
+      "exits": {
+        "up": {
+          "room_id": "hallway",
+          "door_id": "cellar_door",
+          "look_description": "The trapdoor above leads back to the hallway."
+        },
+        "north": {
+          "room_id": "hidden_cellar",
+          "door_id": "wooden_barricade",
+          "look_description": "A crude barricade of planks blocks the northern passage."
+        }
+      }
+    },
+    {
+      "id": "vault_room",
+      "name": "Vault",
+      "description": "A small stone room. Iron shelves hold row upon row of dusty ledgers and sealed strongboxes. A placard on the wall reads: 'For the worthy — take what is owed.'",
+      "end_condition": "win",
+      "end_message": "You stand inside the vault at last. The strongboxes yield to your touch, overflowing with gold coins and jewels. You have won!",
+      "exits": {
+        "east": {
+          "room_id": "hallway",
+          "look_description": "The hallway stretches back east."
+        }
+      }
+    },
+    {
+      "id": "rooftop",
+      "name": "Rooftop",
+      "description": "You stand on the crumbling rooftop. Wind tugs at your coat. The countryside stretches in every direction. Below, the garden shimmers with an eerie light. To the north the roof ends abruptly — a sheer drop.",
+      "exits": {
+        "north": {
+          "room_id": "void",
+          "look_description": "The roof's edge, and beyond it a long, long drop."
+        },
+        "down": {
+          "room_id": "stair_scene",
+          "look_description": "The staircase descends back into the entrance hall."
+        }
+      }
+    },
+    {
+      "id": "hidden_cellar",
+      "name": "Hidden Cellar",
+      "description": "Beyond the barricade lies a forgotten alcove. Dusty bottles line a stone shelf. Whoever hid things here didn't want them found.",
+      "first_visit_message": "You cough as decades of dust billow from the disturbed passage.",
+      "exits": {
+        "south": {
+          "room_id": "cellar",
+          "look_description": "The broken barricade leads back south to the main cellar."
+        }
+      }
+    },
+    {
+      "id": "void",
+      "name": "The Void",
+      "description": "You step off the edge.",
+      "end_condition": "lose",
+      "end_message": "The wind rushes past you as you fall. The ground rushes up to meet you. Game over."
+    },
+    {
+      "id": "stair_scene",
+      "name": "Staircase",
+      "description": "You descend the creaking staircase. Each step groans under your weight. A chill rises from below, carrying the scent of dust and old wood.",
+      "cutscene": "start"
+    }
+  ]
+}

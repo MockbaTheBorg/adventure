@@ -1,0 +1,14 @@
+# Build artifacts
+adventure
+obj/
+
+# Save files
+saves/
+
+# Claude project data
+.claude/
+
+# Editor / OS
+*.swp
+*~
+.DS_Store
