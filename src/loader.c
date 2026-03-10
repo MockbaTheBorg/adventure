@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #include "loader.h"
 #include "json_load.h"
@@ -136,6 +137,28 @@ static int load_objects(GameState *gs, const cJSON *root)
         o->on_use_end     = dup(json_get_string(item, "on_use_end",    NULL));
         o->end_message    = dup(json_get_string(item, "end_message",   NULL));
 
+        /* Equipment / healing / repair / template fields */
+        o->is_weapon      = json_get_bool(item, "is_weapon",      0);
+        o->is_shield      = json_get_bool(item, "is_shield",      0);
+        o->damage         = json_get_int (item, "damage",         0);
+        o->defense        = json_get_int (item, "defense",        0);
+        o->max_durability = json_get_int (item, "max_durability", 0);
+        if (o->max_durability > 0)
+            o->durability = json_get_int(item, "durability", o->max_durability);
+        else
+            o->durability = 0;
+        o->heal           = json_get_int (item, "heal",           0);
+        o->repair_amount  = json_get_int (item, "repair_amount",  0);
+        o->is_template    = json_get_bool(item, "is_template",    0);
+        o->is_dynamic     = 0;
+        {
+            const char *tb = json_get_string(item, "template_base", NULL);
+            if (tb) {
+                strncpy(o->template_base, tb, sizeof(o->template_base) - 1);
+                o->template_base[sizeof(o->template_base) - 1] = '\0';
+            }
+        }
+
         /* Load contains array */
         {
             const cJSON *carr = cJSON_GetObjectItemCaseSensitive(item, "contains");
@@ -221,6 +244,18 @@ static int load_npcs(GameState *gs, const cJSON *root)
         n->after_dialogue = dup(json_get_string(item, "after_dialogue", NULL));
         n->gives          = dup(json_get_string(item, "gives",          NULL));
         n->talked         = 0;
+        /* Combat / services / dynamic fields */
+        n->hostile      = json_get_bool(item, "hostile",      0);
+        n->max_hp       = json_get_int (item, "hp",           0);
+        n->hp           = n->max_hp;
+        n->damage       = json_get_int (item, "damage",       0);
+        n->alive        = 1;
+        n->drops        = dup(json_get_string(item, "drops",  NULL));
+        n->healer       = json_get_bool(item, "healer",       0);
+        n->heal_amount  = json_get_int (item, "heal_amount",  0);
+        n->repairer     = json_get_bool(item, "repairer",     0);
+        n->is_template  = json_get_bool(item, "is_template",  0);
+        n->is_dynamic   = 0;
     }
     return 1;
 }
@@ -322,6 +357,25 @@ static int load_rooms(GameState *gs, const cJSON *root)
                 }
             }
         }
+
+        /* --- spawn table for this room --- */
+        {
+            const cJSON *sp_arr = cJSON_GetObjectItemCaseSensitive(item, "spawns");
+            if (sp_arr && cJSON_IsArray(sp_arr)) {
+                const cJSON *sp_node;
+                cJSON_ArrayForEach(sp_node, sp_arr) {
+                    const char *sp_npc_id;
+                    SpawnEntry *se;
+                    if (r->spawn_count >= ROOM_MAX_SPAWNS) break;
+                    sp_npc_id = json_get_string(sp_node, "npc_id", NULL);
+                    if (!sp_npc_id) continue;
+                    se = &r->spawns[r->spawn_count++];
+                    se->npc_id      = dup(sp_npc_id);
+                    se->probability = json_get_int (sp_node, "probability", 50);
+                    se->respawn     = json_get_bool(sp_node, "respawn",      0);
+                }
+            }
+        }
     }
     return 1;
 }
@@ -370,12 +424,26 @@ int game_load(GameState *gs, const char *path)
         return 0;
     }
 
+    /* Initialise combat state */
+    gs->player_hp       = 100;
+    gs->equipped_weapon = NULL;
+    gs->equipped_shield = NULL;
+    gs->pending_hostile = 0;
+
+    /* Seed random for spawn rolls */
+    srand((unsigned int)time(NULL));
+
     return 1;
 }
 
 static void free_object(Object *o)
 {
     int i;
+    if (o->is_dynamic) {
+        /* Dynamic instances share all strings with template; only id is owned */
+        free(o->id);
+        return;
+    }
     free(o->id);
     free(o->name);
     free(o->description);
@@ -401,17 +469,23 @@ static void free_door(Door *d)
 
 static void free_npc(NPC *n)
 {
+    if (n->is_dynamic) {
+        /* Dynamic instances share all strings with template; only id is owned */
+        free(n->id);
+        return;
+    }
     free(n->id);
     free(n->name);
     free(n->description);
     free(n->dialogue);
     free(n->after_dialogue);
     free(n->gives);
+    free(n->drops);
 }
 
 static void free_room(Room *r)
 {
-    int d;
+    int d, s;
     free(r->id);
     free(r->name);
     free(r->description);
@@ -424,7 +498,9 @@ static void free_room(Room *r)
         free(r->exits[d].door_id);
         free(r->exits[d].look_description);
     }
-    /* objects[] are pointers into gs->objects[]; do not free them here */
+    for (s = 0; s < r->spawn_count; s++)
+        free(r->spawns[s].npc_id);
+    /* objects[] and npcs[] are pointers into gs->objects[]/gs->npcs[] */
 }
 
 void game_free(GameState *gs)
@@ -438,4 +514,138 @@ void game_free(GameState *gs)
     free(gs->win_message);
     free(gs->save_path);
     memset(gs, 0, sizeof(*gs));
+}
+
+/* -------------------------------------------------------------------------
+ * create_template_instance
+ *
+ * Creates a numbered dynamic copy of a template object.  The new id is
+ * "{template_base}_NN" where NN is the lowest number not already in use.
+ * Returns a pointer to the new entry, or NULL on failure.
+ * ------------------------------------------------------------------------- */
+Object *create_template_instance(GameState *gs, const char *template_base)
+{
+    Object *tmpl;
+    Object *obj;
+    char    new_id[128];
+    int     i, n, found;
+
+    /* Find the template */
+    tmpl = NULL;
+    for (i = 0; i < gs->object_count; i++) {
+        if (gs->objects[i].is_template &&
+            strcmp(gs->objects[i].id, template_base) == 0) {
+            tmpl = &gs->objects[i];
+            break;
+        }
+    }
+    if (!tmpl) return NULL;
+    if (gs->object_count >= MAX_OBJECTS) return NULL;
+
+    /* Find lowest available slot number */
+    for (n = 1; n < 100; n++) {
+        sprintf(new_id, "%s_%02d", template_base, n);
+        found = 0;
+        for (i = 0; i < gs->object_count; i++) {
+            if (strcmp(gs->objects[i].id, new_id) == 0) {
+                found = 1;
+                break;
+            }
+        }
+        if (!found) break;
+    }
+    if (n >= 100) return NULL;
+
+    /* Copy template struct, replace id with heap-allocated numbered id */
+    obj = &gs->objects[gs->object_count++];
+    *obj = *tmpl;
+    obj->id = (char *)malloc(strlen(new_id) + 1);
+    if (!obj->id) { gs->object_count--; return NULL; }
+    strcpy(obj->id, new_id);
+    obj->is_dynamic  = 1;
+    obj->is_template = 0;
+
+    return obj;
+}
+
+/* -------------------------------------------------------------------------
+ * spawn_room_npcs
+ *
+ * Rolls the spawn table for a room on room_enter.  For each SpawnEntry:
+ *   - If probability roll fails, skip.
+ *   - If respawn=0 and an instance from this template already lives in the
+ *     room (dynamic NPC whose id starts with "npc_id_"), skip.
+ *   - Otherwise create a new dynamic NPC instance with id "{npc_id}_NN".
+ * ------------------------------------------------------------------------- */
+void spawn_room_npcs(GameState *gs, Room *room)
+{
+    int s, i, present, n, found;
+    size_t base_len;
+    char   new_id[128];
+    NPC   *tmpl;
+    NPC   *npc;
+
+    for (s = 0; s < room->spawn_count; s++) {
+        SpawnEntry *se = &room->spawns[s];
+
+        /* Probability roll */
+        if ((rand() % 100) >= se->probability) continue;
+
+        /* If no-respawn: check if an instance is already in the room */
+        if (!se->respawn) {
+            base_len = strlen(se->npc_id);
+            present  = 0;
+            for (i = 0; i < room->npc_count; i++) {
+                NPC *rn = room->npcs[i];
+                if (strncmp(rn->id, se->npc_id, base_len) == 0 &&
+                    rn->id[base_len] == '_' &&
+                    rn->is_dynamic) {
+                    present = 1;
+                    break;
+                }
+            }
+            if (present) continue;
+        }
+
+        /* Find template NPC */
+        tmpl = NULL;
+        for (i = 0; i < gs->npc_count; i++) {
+            if (gs->npcs[i].is_template &&
+                strcmp(gs->npcs[i].id, se->npc_id) == 0) {
+                tmpl = &gs->npcs[i];
+                break;
+            }
+        }
+        if (!tmpl) continue;
+        if (gs->npc_count >= MAX_NPCS) continue;
+        if (room->npc_count >= ROOM_MAX_NPCS) continue;
+
+        /* Find lowest available slot number */
+        for (n = 1; n < 100; n++) {
+            sprintf(new_id, "%s_%02d", se->npc_id, n);
+            found = 0;
+            for (i = 0; i < gs->npc_count; i++) {
+                if (strcmp(gs->npcs[i].id, new_id) == 0) {
+                    found = 1;
+                    break;
+                }
+            }
+            if (!found) break;
+        }
+        if (n >= 100) continue;
+
+        /* Copy template, replace id */
+        npc = &gs->npcs[gs->npc_count++];
+        *npc = *tmpl;
+        npc->id = (char *)malloc(strlen(new_id) + 1);
+        if (!npc->id) { gs->npc_count--; continue; }
+        strcpy(npc->id, new_id);
+        npc->is_dynamic  = 1;
+        npc->is_template = 0;
+        npc->alive       = 1;
+        npc->hp          = tmpl->max_hp;
+        npc->talked      = 0;
+
+        room->npcs[room->npc_count++] = npc;
+    }
 }

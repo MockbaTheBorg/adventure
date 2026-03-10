@@ -3,6 +3,8 @@
 #include <stdlib.h>
 
 #include "commands.h"
+#include "combat.h"
+#include "loader.h"
 #include "input.h"
 #include "save.h"
 #include "messages.h"
@@ -13,20 +15,50 @@
  * ------------------------------------------------------------------------- */
 
 /*
- * print_room - Display current room: name, description, exits, objects.
- * Clears the screen first.  No first_visit_message, no cutscene logic.
+ * print_room - Display current room: name, HP bar, equipped gear, description,
+ * exits, objects, NPCs.  Clears the screen first.
+ * No first_visit_message, no cutscene logic.
  * Declared non-static (see commands.h) so cmd_help can call it externally.
  */
 void print_room(const GameState *gs)
 {
     const Room *r = gs->current_room;
-    int d, i;
+    int d, i, alive_count;
 
     ansi_clear_screen();
     printf("\n");
     ansi_bold(); ansi_color(COLOR_CYAN);
     printf("[ %s ]\n", r->name);
     ansi_reset();
+
+    /* HP bar */
+    combat_hp_bar("HP", gs->player_hp, 100, 20);
+
+    /* Equipped gear line */
+    if (gs->equipped_weapon || gs->equipped_shield) {
+        if (gs->equipped_weapon) {
+            printf("[Weapon: %s",
+                   gs->equipped_weapon->name
+                   ? gs->equipped_weapon->name : gs->equipped_weapon->id);
+            if (gs->equipped_weapon->max_durability > 0)
+                printf(" %d%%",
+                       (gs->equipped_weapon->durability * 100)
+                       / gs->equipped_weapon->max_durability);
+            printf("]");
+        }
+        if (gs->equipped_shield) {
+            if (gs->equipped_weapon) printf(" ");
+            printf("[Shield: %s",
+                   gs->equipped_shield->name
+                   ? gs->equipped_shield->name : gs->equipped_shield->id);
+            if (gs->equipped_shield->max_durability > 0)
+                printf(" %d%%",
+                       (gs->equipped_shield->durability * 100)
+                       / gs->equipped_shield->max_durability);
+            printf("]");
+        }
+        printf("\n");
+    }
 
     if (r->description && r->description[0] != '\0')
         printf("%s\n", r->description);
@@ -48,7 +80,7 @@ void print_room(const GameState *gs)
     }
     printf("\n");
 
-    /* Objects on the floor — comma-separated */
+    /* Objects on the floor */
     if (r->object_count > 0) {
         printf("\n");
         ansi_color(COLOR_GREEN);
@@ -62,16 +94,30 @@ void print_room(const GameState *gs)
         printf("\n");
     }
 
-    /* NPCs in the room */
-    if (r->npc_count > 0) {
+    /* NPCs (alive only; track hostile presence) */
+    alive_count = 0;
+    for (i = 0; i < r->npc_count; i++)
+        if (r->npcs[i]->alive) alive_count++;
+
+    if (alive_count > 0) {
+        int first        = 1;
+        int hostile_here = 0;
         printf("\n");
         ansi_color(COLOR_CYAN);
         printf("Also here:");
         ansi_reset();
         for (i = 0; i < r->npc_count; i++) {
-            if (i > 0) printf(",");
+            if (!r->npcs[i]->alive) continue;
+            if (!first) printf(",");
             printf(" %s", r->npcs[i]->name
                           ? r->npcs[i]->name : r->npcs[i]->id);
+            if (r->npcs[i]->hostile) hostile_here = 1;
+            first = 0;
+        }
+        if (hostile_here && gs->pending_hostile) {
+            ansi_color(COLOR_RED);
+            printf("  [hostile]");
+            ansi_reset();
         }
         printf("\n");
     }
@@ -79,7 +125,6 @@ void print_room(const GameState *gs)
 
 /*
  * cancel_command - Called when ESC is pressed during any sub-prompt.
- * Clears the screen and redraws the current room.
  */
 static void cancel_command(GameState *gs)
 {
@@ -95,10 +140,20 @@ static void inspect_object(const Object *o)
     printf("%s\n", o->name ? o->name : o->id);
     ansi_reset();
     printf("%s\n", o->description ? o->description : MSG_INSPECT_NOTHING);
+    if (o->max_durability > 0) {
+        combat_hp_bar("Durability",
+                      o->durability, o->max_durability, 20);
+    }
+    if (o->is_weapon)
+        printf("Weapon  damage: +%d\n", o->damage);
+    if (o->is_shield)
+        printf("Shield  defense: %d%%\n", o->defense);
+    if (o->heal > 0)
+        printf("Heals: %d HP\n", o->heal);
 }
 
 /*
- * inspect_door - Print the name, description, and status of a door.
+ * inspect_door - Print name, description, and status of a door.
  */
 static void inspect_door(const Door *d)
 {
@@ -114,18 +169,26 @@ static void inspect_door(const Door *d)
 }
 
 /*
- * inspect_npc - Print the name and description of an NPC.
+ * inspect_npc - Print name, HP, and description of an NPC.
  */
 static void inspect_npc(const NPC *n)
 {
     ansi_bold();
     printf("%s\n", n->name ? n->name : n->id);
     ansi_reset();
+    if (!n->alive) {
+        ansi_color(COLOR_RED);
+        printf("[defeated]\n");
+        ansi_reset();
+        return;
+    }
+    if (n->max_hp > 0)
+        combat_hp_bar("HP", n->hp, n->max_hp, 20);
     printf("%s\n", n->description ? n->description : MSG_INSPECT_NOTHING);
 }
 
 /*
- * set_save_path - Store a new save path in gs, freeing any previous one.
+ * set_save_path / prompt_save_path
  */
 static void set_save_path(GameState *gs, const char *path)
 {
@@ -134,10 +197,6 @@ static void set_save_path(GameState *gs, const char *path)
     if (gs->save_path) strcpy(gs->save_path, path);
 }
 
-/*
- * prompt_save_path - If no save_path is set, ask the user for a filename.
- * Returns 1 if a path is now set, 0 if the user cancelled.
- */
 static int prompt_save_path(GameState *gs)
 {
     char filename[256];
@@ -157,21 +216,32 @@ static int prompt_save_path(GameState *gs)
 
 /* -------------------------------------------------------------------------
  * room_enter
- *
- * Single entry point for all room transitions.  Handles:
- *   - Cutscene rooms: show description + "Press any key", warp to dest.
- *   - First-visit messages: shown once after the normal room display.
  * ------------------------------------------------------------------------- */
 void room_enter(GameState *gs, Room *dest)
 {
     int first_visit;
+    int i, has_hostile;
 
     gs->current_room = dest;
     first_visit      = !dest->visited;
     dest->visited    = 1;
 
+    /* Random NPC spawns for this room */
+    spawn_room_npcs(gs, dest);
+
+    /* Determine if any hostile NPC is alive here */
+    has_hostile = 0;
+    for (i = 0; i < dest->npc_count; i++) {
+        if (dest->npcs[i]->hostile && dest->npcs[i]->alive) {
+            has_hostile = 1;
+            break;
+        }
+    }
+    gs->pending_hostile = has_hostile;
+
     if (dest->cutscene) {
-        /* --- cutscene room: narrative passage, no game menu --- */
+        /* cutscene room: narrative passage, no game menu */
+        Room *next;
         ansi_clear_screen();
         printf("\n");
         if (dest->description && dest->description[0] != '\0')
@@ -193,16 +263,16 @@ void room_enter(GameState *gs, Room *dest)
         term_getkey();
         printf("\n");
 
-        dest = find_room(gs, gs->current_room->cutscene);
-        if (!dest) {
+        next = find_room(gs, gs->current_room->cutscene);
+        if (!next) {
             fprintf(stderr, "error: cutscene destination '%s' not found\n",
                     gs->current_room->cutscene);
             return;
         }
-        room_enter(gs, dest);
+        room_enter(gs, next);
 
     } else {
-        /* --- normal room --- */
+        /* normal room */
         print_room(gs);
 
         if (first_visit && dest->first_visit_message
@@ -213,12 +283,25 @@ void room_enter(GameState *gs, Room *dest)
             ansi_reset();
         }
 
+        /* Hostile warning after room is shown */
+        if (has_hostile) {
+            printf("\n");
+            ansi_color(COLOR_RED);
+            for (i = 0; i < dest->npc_count; i++) {
+                if (dest->npcs[i]->hostile && dest->npcs[i]->alive)
+                    printf("%s eyes you with hostility.\n",
+                           dest->npcs[i]->name
+                           ? dest->npcs[i]->name : dest->npcs[i]->id);
+            }
+            ansi_reset();
+        }
+
         check_room_end(gs);
     }
 }
 
 /*
- * do_go - Move in direction dir.  Shared by cmd_go and cmd_teleport.
+ * do_go - Move in direction dir.  Shared by cmd_go.
  */
 static void do_go(GameState *gs, int dir)
 {
@@ -304,15 +387,9 @@ void cmd_look(GameState *gs)
 
 /*
  * cmd_inspect - Inspect objects, doors, or NPCs in the room, or inventory.
- *
- * [a] = fixed Inventory shortcut.
- * [b]-[z] = room objects, then accessible doors, then room NPCs (up to 25).
- * Inventory sub-list uses the full a-z range (26 items).
- * ESC at any level cancels and redraws the room.
  */
 void cmd_inspect(GameState *gs)
 {
-    /* Unified inspectable-item list: objects first, then doors, then NPCs */
 #define ITYPE_OBJ  0
 #define ITYPE_DOOR 1
 #define ITYPE_NPC  2
@@ -342,7 +419,6 @@ void cmd_inspect(GameState *gs)
         if (!ex->door_id) continue;
         door = find_door(gs, ex->door_id);
         if (!door) continue;
-        /* dedup: same door can appear in multiple exits */
         already = 0;
         for (seen = 0; seen < count; seen++) {
             if (itypes[seen] == ITYPE_DOOR && items[seen] == (void *)door) {
@@ -357,7 +433,7 @@ void cmd_inspect(GameState *gs)
         count++;
     }
 
-    /* NPCs in the room */
+    /* All NPCs in the room (alive and defeated) */
     for (i = 0; i < r->npc_count && count < 25; i++) {
         items[count]  = r->npcs[i];
         itypes[count] = ITYPE_NPC;
@@ -366,7 +442,6 @@ void cmd_inspect(GameState *gs)
         count++;
     }
 
-    /* Display */
     printf("\n");
     ansi_bold();
     printf("Inspect what?\n");
@@ -377,8 +452,13 @@ void cmd_inspect(GameState *gs)
     ansi_reset();
 
     for (i = 0; i < count; i++) {
-        if (itypes[i] == ITYPE_NPC)       ansi_color(COLOR_CYAN);
-        else if (itypes[i] == ITYPE_DOOR)  ansi_color(COLOR_YELLOW);
+        if (itypes[i] == ITYPE_NPC) {
+            NPC *npc = (NPC *)items[i];
+            if (npc->alive) ansi_color(COLOR_CYAN);
+            else            ansi_color(COLOR_RED);
+        } else if (itypes[i] == ITYPE_DOOR) {
+            ansi_color(COLOR_YELLOW);
+        }
         printf("  [%c] %s", 'b' + i, inames[i]);
         ansi_reset();
         if (itypes[i] == ITYPE_DOOR) {
@@ -386,6 +466,9 @@ void cmd_inspect(GameState *gs)
             if (door->destroyed)   printf(" [destroyed]");
             else if (door->locked) printf(" [locked]");
             else                   printf(" [open]");
+        } else if (itypes[i] == ITYPE_NPC) {
+            NPC *npc = (NPC *)items[i];
+            if (!npc->alive) printf(" [defeated]");
         }
         printf("\n");
     }
@@ -477,7 +560,7 @@ void cmd_use(GameState *gs)
 {
     int     idx;
     Object *o;
-    Door   *target_door = NULL;
+    Door   *target_door;
     int     d;
 
     idx = input_pick_object(gs->inventory.items, gs->inventory.count,
@@ -487,11 +570,27 @@ void cmd_use(GameState *gs)
 
     o = gs->inventory.items[idx];
 
+    /* Healing items: no use_target needed */
+    if (o->heal > 0 && !o->use_target) {
+        if (gs->player_hp >= 100) {
+            printf("%s\n", MSG_HEAL_FULL);
+            return;
+        }
+        gs->player_hp += o->heal;
+        if (gs->player_hp > 100) gs->player_hp = 100;
+        printf("%s (You: %d/100 HP)\n", MSG_HEAL_OK, gs->player_hp);
+        if (o->single_use)
+            gs->inventory.items[idx] =
+                gs->inventory.items[--gs->inventory.count];
+        return;
+    }
+
     if (!o->use_target) {
         printf("%s\n", o->message ? o->message : MSG_USE_NOTHING);
         return;
     }
 
+    target_door = NULL;
     for (d = 0; d < DIR_COUNT; d++) {
         const Exit *ex = &gs->current_room->exits[d];
         if (ex->door_id && strcmp(ex->door_id, o->use_target) == 0) {
@@ -588,34 +687,40 @@ void cmd_open(GameState *gs)
     }
 }
 
-/* cmd_teleport removed; teleport is still accessible via [G]o -> T */
-
 void cmd_talk(GameState *gs)
 {
-    Room   *r = gs->current_room;
-    NPC    *n;
-    Object *gift;
+    Room       *r = gs->current_room;
+    NPC        *alive_npcs[ROOM_MAX_NPCS];
+    int         alive_count;
+    NPC        *n;
+    Object     *gift_tmpl;
+    Object     *gift;
     const char *dialogue;
-    int     i, idx, shown;
-    char    c;
+    int         i, idx, shown;
+    char        c;
 
-    if (r->npc_count == 0) {
+    alive_count = 0;
+    for (i = 0; i < r->npc_count; i++)
+        if (r->npcs[i]->alive)
+            alive_npcs[alive_count++] = r->npcs[i];
+
+    if (alive_count == 0) {
         printf("%s\n", MSG_NO_NPC);
         return;
     }
 
-    if (r->npc_count == 1) {
-        n = r->npcs[0];
+    if (alive_count == 1) {
+        n = alive_npcs[0];
     } else {
-        /* Inline NPC picker */
         printf("\n");
         ansi_bold();
         printf("Talk to whom?\n");
         ansi_reset();
-        shown = (r->npc_count < 26) ? r->npc_count : 26;
+        shown = (alive_count < 26) ? alive_count : 26;
         for (i = 0; i < shown; i++) {
             printf("  [%c] %s\n", 'a' + i,
-                   r->npcs[i]->name ? r->npcs[i]->name : r->npcs[i]->id);
+                   alive_npcs[i]->name
+                   ? alive_npcs[i]->name : alive_npcs[i]->id);
         }
         printf("  [0] Cancel\n> ");
         fflush(stdout);
@@ -628,7 +733,7 @@ void cmd_talk(GameState *gs)
         if (c < 'a' || c > 'z') return;
         idx = c - 'a';
         if (idx >= shown) return;
-        n = r->npcs[idx];
+        n = alive_npcs[idx];
     }
 
     ansi_bold();
@@ -640,23 +745,30 @@ void cmd_talk(GameState *gs)
         printf("%s\n", dialogue);
         n->talked = 1;
 
-        /* Give object on first talk */
+        /* Give object on first talk (handle templates) */
         if (n->gives) {
-            gift = find_object(gs, n->gives);
-            if (gift) {
-                if (gs->inventory.count < INV_MAX_OBJECTS) {
-                    gs->inventory.items[gs->inventory.count++] = gift;
-                    printf("%s hands you the %s.\n",
-                           n->name ? n->name : "They",
-                           gift->name ? gift->name : gift->id);
+            gift_tmpl = find_object(gs, n->gives);
+            if (gift_tmpl) {
+                if (gift_tmpl->is_template) {
+                    gift = create_template_instance(gs, n->gives);
                 } else {
-                    if (r->object_count < ROOM_MAX_OBJECTS)
-                        r->objects[r->object_count++] = gift;
-                    printf("%s sets the %s on the floor.\n",
-                           n->name ? n->name : "They",
-                           gift->name ? gift->name : gift->id);
+                    gift = gift_tmpl;
                 }
-                check_inv_win(gs);
+                if (gift) {
+                    if (gs->inventory.count < INV_MAX_OBJECTS) {
+                        gs->inventory.items[gs->inventory.count++] = gift;
+                        printf("%s hands you the %s.\n",
+                               n->name ? n->name : "They",
+                               gift->name ? gift->name : gift->id);
+                    } else {
+                        if (r->object_count < ROOM_MAX_OBJECTS)
+                            r->objects[r->object_count++] = gift;
+                        printf("%s sets the %s on the floor.\n",
+                               n->name ? n->name : "They",
+                               gift->name ? gift->name : gift->id);
+                    }
+                    check_inv_win(gs);
+                }
             }
         }
     } else {
@@ -665,6 +777,285 @@ void cmd_talk(GameState *gs)
                  : MSG_NPC_NOTHING;
         printf("%s\n", dialogue);
     }
+
+    /* Healer: restore HP (on any talk) */
+    if (n->healer && gs->player_hp < 100) {
+        gs->player_hp += n->heal_amount;
+        if (gs->player_hp > 100) gs->player_hp = 100;
+        printf("%s heals you for %d HP. (You: %d/100 HP)\n",
+               n->name ? n->name : "They",
+               n->heal_amount, gs->player_hp);
+    }
+}
+
+/* -------------------------------------------------------------------------
+ * cmd_equip - Equip or unequip a weapon/shield from inventory.
+ * ------------------------------------------------------------------------- */
+void cmd_equip(GameState *gs)
+{
+    Object *equippable[INV_MAX_OBJECTS];
+    int     eq_count;
+    int     i, idx;
+    Object *o;
+    char    c;
+
+    eq_count = 0;
+    for (i = 0; i < gs->inventory.count; i++) {
+        Object *item = gs->inventory.items[i];
+        if (item->is_weapon || item->is_shield)
+            equippable[eq_count++] = item;
+    }
+
+    if (eq_count == 0) {
+        printf("%s\n", MSG_EQUIP_NOTHING);
+        return;
+    }
+
+    printf("\n");
+    ansi_bold();
+    printf("Equip what?\n");
+    ansi_reset();
+
+    for (i = 0; i < eq_count; i++) {
+        int is_eq;
+        o    = equippable[i];
+        is_eq = (o == gs->equipped_weapon || o == gs->equipped_shield);
+        printf("  [%c] %s [%s]",
+               'a' + i,
+               o->name ? o->name : o->id,
+               o->is_weapon ? "weapon" : "shield");
+        if (is_eq) {
+            ansi_color(COLOR_GREEN);
+            printf(" (equipped)");
+            ansi_reset();
+        }
+        if (o->max_durability > 0)
+            printf(" %d%%",
+                   (o->durability * 100) / o->max_durability);
+        printf("\n");
+    }
+    printf("  [0] Cancel\n> ");
+    fflush(stdout);
+
+    c = term_getkey();
+    if (c == 27) { cancel_command(gs); return; }
+    if (c >= 'A' && c <= 'Z') c = (char)(c + 32);
+    printf("%c\n", c);
+    if (c == '0') return;
+    if (c < 'a' || c > 'z') return;
+    idx = c - 'a';
+    if (idx >= eq_count) return;
+
+    o = equippable[idx];
+
+    if (o->is_weapon) {
+        if (gs->equipped_weapon == o) {
+            gs->equipped_weapon = NULL;
+            printf("%s\n", MSG_UNEQUIP_OK);
+        } else {
+            gs->equipped_weapon = o;
+            printf("%s\n", MSG_EQUIP_WEAPON_OK);
+        }
+    } else {
+        if (gs->equipped_shield == o) {
+            gs->equipped_shield = NULL;
+            printf("%s\n", MSG_UNEQUIP_OK);
+        } else {
+            gs->equipped_shield = o;
+            printf("%s\n", MSG_EQUIP_SHIELD_OK);
+        }
+    }
+}
+
+/* -------------------------------------------------------------------------
+ * cmd_attack - Attack an NPC in the current room.
+ * ------------------------------------------------------------------------- */
+void cmd_attack(GameState *gs)
+{
+    Room *r = gs->current_room;
+    NPC  *alive[ROOM_MAX_NPCS];
+    int   count;
+    int   i, idx, shown;
+    NPC  *n;
+    char  c;
+
+    count = 0;
+    for (i = 0; i < r->npc_count; i++) {
+        if (r->npcs[i]->alive)
+            alive[count++] = r->npcs[i];
+    }
+
+    if (count == 0) {
+        printf("%s\n", MSG_ATTACK_NO_NPC);
+        return;
+    }
+
+    if (count == 1) {
+        n = alive[0];
+    } else {
+        printf("\n");
+        ansi_bold();
+        printf("Attack whom?\n");
+        ansi_reset();
+        shown = (count < 26) ? count : 26;
+        for (i = 0; i < shown; i++) {
+            printf("  [%c] %s",
+                   'a' + i,
+                   alive[i]->name ? alive[i]->name : alive[i]->id);
+            if (alive[i]->max_hp > 0)
+                printf(" (%d/%d HP)", alive[i]->hp, alive[i]->max_hp);
+            printf("\n");
+        }
+        printf("  [0] Cancel\n> ");
+        fflush(stdout);
+
+        c = term_getkey();
+        if (c == 27) { cancel_command(gs); return; }
+        if (c >= 'A' && c <= 'Z') c = (char)(c + 32);
+        printf("%c\n", c);
+        if (c == '0') return;
+        if (c < 'a' || c > 'z') return;
+        idx = c - 'a';
+        if (idx >= shown) return;
+        n = alive[idx];
+    }
+
+    combat_attack(gs, n);
+}
+
+/* -------------------------------------------------------------------------
+ * cmd_repair - Repair equipped gear via NPC repairer or repair kit.
+ * ------------------------------------------------------------------------- */
+void cmd_repair(GameState *gs)
+{
+    Room   *r = gs->current_room;
+    Object *gear[2];
+    int     gear_count;
+    int     i, repaired, idx;
+    NPC    *repairer;
+    Object *repair_kit;
+    int     kit_idx;
+    Object *target;
+    char    c;
+
+    gear_count = 0;
+    repairer   = NULL;
+    repair_kit = NULL;
+    kit_idx    = -1;
+    target     = NULL;
+
+    /* Look for a repairer NPC in the room */
+    for (i = 0; i < r->npc_count; i++) {
+        if (r->npcs[i]->repairer && r->npcs[i]->alive) {
+            repairer = r->npcs[i];
+            break;
+        }
+    }
+
+    /* If no repairer, look for a repair kit in inventory */
+    if (!repairer) {
+        for (i = 0; i < gs->inventory.count; i++) {
+            if (gs->inventory.items[i]->repair_amount > 0) {
+                repair_kit = gs->inventory.items[i];
+                kit_idx    = i;
+                break;
+            }
+        }
+    }
+
+    if (!repairer && !repair_kit) {
+        printf("%s\n", MSG_REPAIR_NOTHING);
+        return;
+    }
+
+    if (repairer) {
+        /* Repair repairer repairs all equipped items to max */
+        repaired = 0;
+        if (gs->equipped_weapon
+            && gs->equipped_weapon->max_durability > 0
+            && gs->equipped_weapon->durability
+               < gs->equipped_weapon->max_durability) {
+            gs->equipped_weapon->durability =
+                gs->equipped_weapon->max_durability;
+            printf("%s repairs your %s.\n",
+                   repairer->name ? repairer->name : "They",
+                   gs->equipped_weapon->name
+                   ? gs->equipped_weapon->name : "weapon");
+            repaired = 1;
+        }
+        if (gs->equipped_shield
+            && gs->equipped_shield->max_durability > 0
+            && gs->equipped_shield->durability
+               < gs->equipped_shield->max_durability) {
+            gs->equipped_shield->durability =
+                gs->equipped_shield->max_durability;
+            printf("%s repairs your %s.\n",
+                   repairer->name ? repairer->name : "They",
+                   gs->equipped_shield->name
+                   ? gs->equipped_shield->name : "shield");
+            repaired = 1;
+        }
+        if (!repaired)
+            printf("%s\n", MSG_REPAIR_FULL);
+        return;
+    }
+
+    /* Repair kit path: find damaged equipped gear */
+    if (gs->equipped_weapon
+        && gs->equipped_weapon->max_durability > 0
+        && gs->equipped_weapon->durability
+           < gs->equipped_weapon->max_durability)
+        gear[gear_count++] = gs->equipped_weapon;
+    if (gs->equipped_shield
+        && gs->equipped_shield->max_durability > 0
+        && gs->equipped_shield->durability
+           < gs->equipped_shield->max_durability)
+        gear[gear_count++] = gs->equipped_shield;
+
+    if (gear_count == 0) {
+        printf("%s\n", MSG_REPAIR_FULL);
+        return;
+    }
+
+    if (gear_count == 1) {
+        target = gear[0];
+    } else {
+        printf("\n");
+        ansi_bold();
+        printf("Repair which item?\n");
+        ansi_reset();
+        for (i = 0; i < gear_count; i++) {
+            printf("  [%c] %s (%d%%)\n",
+                   'a' + i,
+                   gear[i]->name ? gear[i]->name : gear[i]->id,
+                   (gear[i]->max_durability > 0)
+                   ? (gear[i]->durability * 100)
+                     / gear[i]->max_durability : 0);
+        }
+        printf("  [0] Cancel\n> ");
+        fflush(stdout);
+
+        c = term_getkey();
+        if (c == 27) { cancel_command(gs); return; }
+        if (c >= 'A' && c <= 'Z') c = (char)(c + 32);
+        printf("%c\n", c);
+        if (c == '0') return;
+        if (c < 'a' || c > 'z') return;
+        idx = c - 'a';
+        if (idx >= gear_count) return;
+        target = gear[idx];
+    }
+
+    target->durability += repair_kit->repair_amount;
+    if (target->durability > target->max_durability)
+        target->durability = target->max_durability;
+    printf("%s Your %s is now at %d%%.\n",
+           MSG_REPAIR_OK,
+           target->name ? target->name : "item",
+           (target->durability * 100) / target->max_durability);
+    if (repair_kit->single_use)
+        gs->inventory.items[kit_idx] =
+            gs->inventory.items[--gs->inventory.count];
 }
 
 void cmd_save(GameState *gs)
@@ -680,27 +1071,34 @@ void cmd_help(GameState *gs)
 
 /*
  * cmd_help_text - [?] Contextual command reference.
- *
- * Shows only commands that are relevant given the current game state:
- * - [T]eleport hidden if the room has no teleport exit
- * - [P]ickup hidden if nothing in the room is pickupable
- * - [O]pen hidden if nothing in the room is openable
- * - [D]rop / [U]se hidden if inventory is empty
  */
 void cmd_help_text(GameState *gs)
 {
     const Room    *r = gs->current_room;
     const Command *cmd;
     int i, has_pickupable, has_openable, has_usable;
+    int has_alive_npc, has_repairer, has_repair_kit;
 
-    /* Evaluate context */
     has_pickupable = 0;
     has_openable   = 0;
     has_usable     = (gs->inventory.count > 0);
+    has_alive_npc  = 0;
+    has_repairer   = 0;
+    has_repair_kit = 0;
 
     for (i = 0; i < r->object_count; i++) {
         if (r->objects[i]->pickupable) has_pickupable = 1;
         if (r->objects[i]->openable)   has_openable   = 1;
+    }
+    for (i = 0; i < r->npc_count; i++) {
+        if (r->npcs[i]->alive) {
+            has_alive_npc = 1;
+            if (r->npcs[i]->repairer) has_repairer = 1;
+        }
+    }
+    for (i = 0; i < gs->inventory.count; i++) {
+        if (gs->inventory.items[i]->repair_amount > 0)
+            has_repair_kit = 1;
     }
 
     ansi_clear_screen();
@@ -710,12 +1108,13 @@ void cmd_help_text(GameState *gs)
     ansi_reset();
 
     for (cmd = command_table; cmd->key != 0; cmd++) {
-        /* Skip commands not applicable right now */
-        if (cmd->key == 't' && r->npc_count == 0) continue;
-        if (cmd->key == 'p' && !has_pickupable)                  continue;
-        if (cmd->key == 'o' && !has_openable)                    continue;
-        if (cmd->key == 'd' && !has_usable)                      continue;
-        if (cmd->key == 'u' && !has_usable)                      continue;
+        if (cmd->key == 't' && !has_alive_npc)               continue;
+        if (cmd->key == 'p' && !has_pickupable)               continue;
+        if (cmd->key == 'o' && !has_openable)                 continue;
+        if (cmd->key == 'd' && !has_usable)                   continue;
+        if (cmd->key == 'u' && !has_usable)                   continue;
+        if (cmd->key == 'a' && !has_alive_npc)                continue;
+        if (cmd->key == 'r' && !has_repairer && !has_repair_kit) continue;
 
         ansi_bold();
         printf("  [%c] %-10s",
@@ -748,7 +1147,6 @@ void cmd_quit(GameState *gs)
 
     c = term_getkey();
 
-    /* ESC or N cancels */
     if (c == 27) { cancel_command(gs); return; }
 
     if (c >= 'A' && c <= 'Z') c = (char)(c + 32);
@@ -775,31 +1173,57 @@ void cmd_quit(GameState *gs)
 
 /* -------------------------------------------------------------------------
  * Command dispatch table
- * -------------------------------------------------------------------------
- * To add a new command: add one row here and a handler above.
- * The table is scanned linearly; keep it short.
- * Terminate with a zero-key sentinel.
  * ------------------------------------------------------------------------- */
 Command command_table[] = {
-    { 'g', "Go",       cmd_go,        "Move in a direction"              },
-    { 'l', "Look",     cmd_look,      "Look in a direction"              },
-    { 'i', "Inspect",  cmd_inspect,   "Inspect an object or inventory"   },
-    { 'p', "Pickup",   cmd_pickup,    "Pick up an object"                },
-    { 'd', "Drop",     cmd_drop,      "Drop an inventory item"           },
-    { 'u', "Use",      cmd_use,       "Use an inventory item"            },
-    { 'o', "Open",     cmd_open,      "Open a container in the room"     },
-    { 't', "Talk",     cmd_talk,      "Talk to someone in the room"      },
-    { 's', "Save",     cmd_save,      "Save the game"                    },
-    { 'h', "Help",     cmd_help,      "Redisplay the current room"       },
-    { '?', "?",        cmd_help_text, "Show contextual command list"     },
-    { 'q', "Quit",     cmd_quit,      "Quit (with save option)"          },
-    { 0,   NULL,       NULL,          NULL                               }
+    { 'g', "Go",      cmd_go,        "Move in a direction"               },
+    { 'l', "Look",    cmd_look,      "Look in a direction"               },
+    { 'i', "Inspect", cmd_inspect,   "Inspect an object or inventory"    },
+    { 'p', "Pickup",  cmd_pickup,    "Pick up an object"                 },
+    { 'd', "Drop",    cmd_drop,      "Drop an inventory item"            },
+    { 'u', "Use",     cmd_use,       "Use an inventory item"             },
+    { 'o', "Open",    cmd_open,      "Open a container in the room"      },
+    { 't', "Talk",    cmd_talk,      "Talk to someone in the room"       },
+    { 'e', "Equip",   cmd_equip,     "Equip or unequip a weapon/shield"  },
+    { 'a', "Attack",  cmd_attack,    "Attack an NPC in the room"         },
+    { 'r', "Repair",  cmd_repair,    "Repair equipment"                  },
+    { 's', "Save",    cmd_save,      "Save the game"                     },
+    { 'h', "Help",    cmd_help,      "Redisplay the current room"        },
+    { '?', "?",       cmd_help_text, "Show contextual command list"      },
+    { 'q', "Quit",    cmd_quit,      "Quit (with save option)"           },
+    { 0,   NULL,      NULL,          NULL                                }
 };
 
 int cmd_dispatch(GameState *gs, char c)
 {
     Command *cmd;
+    int i;
+
     if (c >= 'A' && c <= 'Z') c = (char)(c + 32);
+
+    /* Hostile NPC pre-attack: fires before any non-movement command */
+    if (gs->pending_hostile) {
+        if (c == 'g') {
+            /* Escaping: clear flag without being attacked */
+            gs->pending_hostile = 0;
+        } else {
+            Room *r = gs->current_room;
+            gs->pending_hostile = 0;
+            for (i = 0; i < r->npc_count; i++) {
+                NPC *n = r->npcs[i];
+                if (n->hostile && n->alive && n->damage > 0) {
+                    printf("%s attacks!\n",
+                           n->name ? n->name : n->id);
+                    gs->player_hp -= n->damage;
+                    if (gs->player_hp < 0) gs->player_hp = 0;
+                    printf("You take %d damage. (You: %d/100 HP)\n",
+                           n->damage, gs->player_hp);
+                    if (gs->player_hp <= 0)
+                        game_end("lose", MSG_PLAYER_KILLED);
+                }
+            }
+        }
+    }
+
     for (cmd = command_table; cmd->key != 0; cmd++) {
         if (cmd->key == c) {
             cmd->handler(gs);

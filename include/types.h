@@ -57,6 +57,20 @@ typedef struct NPC {
     char *gives;          /* id of Object given on first talk;
                              NULL = NPC gives nothing                   */
     int   talked;         /* runtime: 1 = first talk has occurred       */
+    /* Combat */
+    int   hostile;        /* 1 = warns on room entry, auto-attacks      */
+    int   hp;             /* current hit points                         */
+    int   max_hp;         /* 0 = non-combat NPC                         */
+    int   damage;         /* counter-attack damage per round            */
+    int   alive;          /* runtime: 1 = active; 0 = defeated          */
+    char *drops;          /* object id dropped on death; NULL = none    */
+    /* Services */
+    int   healer;         /* 1 = heals player on [T]alk                 */
+    int   heal_amount;    /* HP restored per Talk                       */
+    int   repairer;       /* 1 = repairs gear via [R]epair              */
+    /* Dynamic */
+    int   is_template;    /* 1 = prototype for spawning, not in world   */
+    int   is_dynamic;     /* 1 = id is malloc'd, must be freed          */
 } NPC;
 
 /* -------------------------------------------------------------------------
@@ -87,7 +101,33 @@ typedef struct Object {
                             NULL = no end effect                      */
     char *end_message;   /* text shown on the end screen;
                             NULL → MSG_WIN_DEFAULT / MSG_LOSE_DEFAULT */
+    /* Equipment */
+    int  is_weapon;      /* 1 = can equip in weapon slot               */
+    int  is_shield;      /* 1 = can equip in shield slot               */
+    int  damage;         /* weapon bonus damage (0-100)                */
+    int  defense;        /* shield absorb % (0-100)                    */
+    int  durability;     /* current; -1 = indestructible               */
+    int  max_durability; /* 0 = not tracked                            */
+    /* Healing */
+    int  heal;           /* HP restored on [U]se (0 = no heal)         */
+    /* Repair kit */
+    int  repair_amount;  /* durability restored per use (0 = no repair)*/
+    /* Dynamic template */
+    int  is_template;    /* 1 = prototype, never placed in world        */
+    char template_base[64]; /* base name for numbered instances        */
+    int  is_dynamic;     /* 1 = id is malloc'd, must be freed          */
 } Object;
+
+/* -------------------------------------------------------------------------
+ * SpawnEntry  (random NPC spawn definition for a room)
+ * ------------------------------------------------------------------------- */
+#define ROOM_MAX_SPAWNS 4
+
+typedef struct SpawnEntry {
+    char *npc_id;       /* template NPC id                                */
+    int   probability;  /* 0-100 integer percent chance per room_enter    */
+    int   respawn;      /* 1 = re-roll every entry; 0 = once per game     */
+} SpawnEntry;
 
 /* -------------------------------------------------------------------------
  * Exit  (one slot per direction in a Room)
@@ -124,6 +164,8 @@ typedef struct Room {
     int     object_count;
     NPC    *npcs[ROOM_MAX_NPCS];         /* NPCs currently in room         */
     int     npc_count;
+    SpawnEntry spawns[ROOM_MAX_SPAWNS]; /* random NPC spawn definitions   */
+    int        spawn_count;
 } Room;
 
 /* -------------------------------------------------------------------------
@@ -171,6 +213,12 @@ typedef struct GameState {
     char *win_items[MAX_WIN_ITEMS];   /* object ids required to win       */
     int   win_items_count;
     char *win_message;                /* end-screen text; NULL → default  */
+
+    /* Combat state */
+    int     player_hp;          /* 0-100; initialised to 100            */
+    Object *equipped_weapon;    /* NULL = unarmed                        */
+    Object *equipped_shield;    /* NULL = no shield                      */
+    int     pending_hostile;    /* 1 = NPC attacks before next non-go cmd*/
 } GameState;
 
 /* -------------------------------------------------------------------------

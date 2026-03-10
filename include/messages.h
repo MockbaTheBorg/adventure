@@ -54,6 +54,31 @@
 #define MSG_NO_NPC           "There's no one to talk to here."
 #define MSG_NPC_NOTHING      "They have nothing more to say."
 
+/* Combat */
+#define MSG_ATTACK_NO_NPC   "There is no one to fight here."
+#define MSG_ATTACK_DEAD_NPC "They are already defeated."
+#define MSG_PLAYER_KILLED   "You have been killed."
+#define MSG_WEAPON_BROKE    "Your weapon is now useless!"
+#define MSG_SHIELD_BROKE    "Your shield is now useless!"
+
+/* Equipment */
+#define MSG_EQUIP_NOTHING   "You have nothing to equip."
+#define MSG_EQUIP_WEAPON_OK "Weapon equipped."
+#define MSG_EQUIP_SHIELD_OK "Shield equipped."
+#define MSG_UNEQUIP_OK      "Unequipped."
+
+/* Healing */
+#define MSG_HEAL_FULL       "You are already at full health."
+#define MSG_HEAL_OK         "You feel better."
+
+/* Repair */
+#define MSG_REPAIR_NOTHING  "Nothing to repair with."
+#define MSG_REPAIR_FULL     "Already at full condition."
+#define MSG_REPAIR_OK       "Repaired."
+
+/* NPC death */
+#define MSG_NPC_DEAD        "They are dead."
+
 /* Room */
 #define MSG_NO_ROOM_DESC     ""   /* silent: just show room name */
 

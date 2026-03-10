@@ -3,6 +3,7 @@
 #include <string.h>
 
 #include "save.h"
+#include "loader.h"
 #include "json_load.h"
 #include "cJSON.h"
 
@@ -15,6 +16,7 @@ int game_save(const GameState *gs, const char *path)
     cJSON *root, *inv_arr, *doors_arr, *rooms_arr, *objs_arr, *visited_arr;
     cJSON *npcs_arr, *npc_node;
     cJSON *door_node, *room_node, *obj_arr, *obj_node;
+    cJSON *dyn_objs_arr, *dyn_npcs_arr, *dyn_entry;
     char  *text;
     FILE  *fp;
     int    i, j;
@@ -24,6 +26,64 @@ int game_save(const GameState *gs, const char *path)
 
     /* current room */
     cJSON_AddStringToObject(root, "current_room", gs->current_room->id);
+
+    /* combat state */
+    cJSON_AddNumberToObject(root, "player_hp", gs->player_hp);
+    if (gs->equipped_weapon)
+        cJSON_AddStringToObject(root, "equipped_weapon",
+                                gs->equipped_weapon->id);
+    else
+        cJSON_AddNullToObject(root, "equipped_weapon");
+    if (gs->equipped_shield)
+        cJSON_AddStringToObject(root, "equipped_shield",
+                                gs->equipped_shield->id);
+    else
+        cJSON_AddNullToObject(root, "equipped_shield");
+
+    /* dynamic objects (template instances) */
+    dyn_objs_arr = cJSON_AddArrayToObject(root, "dynamic_objects");
+    for (i = 0; i < gs->object_count; i++) {
+        if (!gs->objects[i].is_dynamic) continue;
+        dyn_entry = cJSON_CreateObject();
+        cJSON_AddStringToObject(dyn_entry, "id", gs->objects[i].id);
+        cJSON_AddStringToObject(dyn_entry, "template_base",
+                                gs->objects[i].template_base);
+        cJSON_AddItemToArray(dyn_objs_arr, dyn_entry);
+    }
+
+    /* dynamic NPCs (spawned instances) — save which room they're in */
+    dyn_npcs_arr = cJSON_AddArrayToObject(root, "dynamic_npcs");
+    for (i = 0; i < gs->npc_count; i++) {
+        int r;
+        if (!gs->npcs[i].is_dynamic) continue;
+        /* Find which room this NPC is in */
+        for (r = 0; r < gs->room_count; r++) {
+            int k;
+            const Room *room = &gs->rooms[r];
+            for (k = 0; k < room->npc_count; k++) {
+                if (room->npcs[k] == &gs->npcs[i]) {
+                    /* Derive template id: strip "_NN" suffix */
+                    char tmpl_id[128];
+                    const char *p;
+                    size_t len;
+                    p   = strrchr(gs->npcs[i].id, '_');
+                    len = p ? (size_t)(p - gs->npcs[i].id)
+                            : strlen(gs->npcs[i].id);
+                    if (len >= sizeof(tmpl_id)) len = sizeof(tmpl_id) - 1;
+                    strncpy(tmpl_id, gs->npcs[i].id, len);
+                    tmpl_id[len] = '\0';
+
+                    dyn_entry = cJSON_CreateObject();
+                    cJSON_AddStringToObject(dyn_entry, "id",
+                                           gs->npcs[i].id);
+                    cJSON_AddStringToObject(dyn_entry, "template", tmpl_id);
+                    cJSON_AddStringToObject(dyn_entry, "room", room->id);
+                    cJSON_AddItemToArray(dyn_npcs_arr, dyn_entry);
+                    break;
+                }
+            }
+        }
+    }
 
     /* inventory */
     inv_arr = cJSON_AddArrayToObject(root, "inventory");
@@ -55,26 +115,32 @@ int game_save(const GameState *gs, const char *path)
         cJSON_AddItemToArray(rooms_arr, room_node);
     }
 
-    /* opened object states */
+    /* object states (opened + durability) */
     objs_arr = cJSON_AddArrayToObject(root, "objects");
     for (i = 0; i < gs->object_count; i++) {
-        if (!gs->objects[i].openable) continue;
+        const Object *o = &gs->objects[i];
+        if (!o->openable && o->max_durability <= 0) continue;
         obj_node = cJSON_CreateObject();
-        cJSON_AddStringToObject(obj_node, "id", gs->objects[i].id);
-        cJSON_AddBoolToObject  (obj_node, "opened", gs->objects[i].opened);
+        cJSON_AddStringToObject(obj_node, "id", o->id);
+        if (o->openable)
+            cJSON_AddBoolToObject(obj_node, "opened", o->opened);
+        if (o->max_durability > 0)
+            cJSON_AddNumberToObject(obj_node, "durability", o->durability);
         cJSON_AddItemToArray(objs_arr, obj_node);
     }
 
-    /* NPC talked states */
+    /* NPC states (talked + hp + alive) */
     npcs_arr = cJSON_AddArrayToObject(root, "npcs");
     for (i = 0; i < gs->npc_count; i++) {
         npc_node = cJSON_CreateObject();
         cJSON_AddStringToObject(npc_node, "id",     gs->npcs[i].id);
         cJSON_AddBoolToObject  (npc_node, "talked", gs->npcs[i].talked);
+        cJSON_AddBoolToObject  (npc_node, "alive",  gs->npcs[i].alive);
+        cJSON_AddNumberToObject(npc_node, "hp",     gs->npcs[i].hp);
         cJSON_AddItemToArray(npcs_arr, npc_node);
     }
 
-    /* visited rooms shortlist (redundant but convenient for tooling) */
+    /* visited rooms shortlist */
     visited_arr = cJSON_AddArrayToObject(root, "visited_rooms");
     for (i = 0; i < gs->room_count; i++)
         if (gs->rooms[i].visited)
@@ -114,6 +180,80 @@ int game_resume(GameState *gs, const char *path)
 
     root = json_load_file(path);
     if (!root) return 0;
+
+    /* --- Phase 1: Recreate dynamic objects --- */
+    arr = cJSON_GetObjectItemCaseSensitive(root, "dynamic_objects");
+    if (arr && cJSON_IsArray(arr)) {
+        cJSON_ArrayForEach(item, arr) {
+            const char *dyn_id  = json_get_string(item, "id",            NULL);
+            const char *tb      = json_get_string(item, "template_base", NULL);
+            Object     *tmpl    = NULL;
+            Object     *obj;
+            int         k;
+
+            if (!dyn_id || !tb) continue;
+            if (gs->object_count >= MAX_OBJECTS) continue;
+
+            /* find template */
+            for (k = 0; k < gs->object_count; k++) {
+                if (gs->objects[k].is_template &&
+                    strcmp(gs->objects[k].id, tb) == 0) {
+                    tmpl = &gs->objects[k];
+                    break;
+                }
+            }
+            if (!tmpl) continue;
+
+            obj = &gs->objects[gs->object_count++];
+            *obj = *tmpl;
+            obj->id = (char *)malloc(strlen(dyn_id) + 1);
+            if (!obj->id) { gs->object_count--; continue; }
+            strcpy(obj->id, dyn_id);
+            obj->is_dynamic  = 1;
+            obj->is_template = 0;
+        }
+    }
+
+    /* --- Phase 2: Recreate dynamic NPCs + place in rooms --- */
+    arr = cJSON_GetObjectItemCaseSensitive(root, "dynamic_npcs");
+    if (arr && cJSON_IsArray(arr)) {
+        cJSON_ArrayForEach(item, arr) {
+            const char *dyn_id  = json_get_string(item, "id",       NULL);
+            const char *tmpl_id = json_get_string(item, "template", NULL);
+            const char *rid     = json_get_string(item, "room",     NULL);
+            NPC        *tmpl    = NULL;
+            NPC        *npc;
+            Room       *room;
+            int         k;
+
+            if (!dyn_id || !tmpl_id) continue;
+            if (gs->npc_count >= MAX_NPCS) continue;
+
+            for (k = 0; k < gs->npc_count; k++) {
+                if (gs->npcs[k].is_template &&
+                    strcmp(gs->npcs[k].id, tmpl_id) == 0) {
+                    tmpl = &gs->npcs[k];
+                    break;
+                }
+            }
+            if (!tmpl) continue;
+
+            npc = &gs->npcs[gs->npc_count++];
+            *npc = *tmpl;
+            npc->id = (char *)malloc(strlen(dyn_id) + 1);
+            if (!npc->id) { gs->npc_count--; continue; }
+            strcpy(npc->id, dyn_id);
+            npc->is_dynamic  = 1;
+            npc->is_template = 0;
+
+            /* Place in room */
+            room = find_room(gs, rid);
+            if (room && room->npc_count < ROOM_MAX_NPCS)
+                room->npcs[room->npc_count++] = npc;
+        }
+    }
+
+    /* --- Phase 3: Standard state restoration --- */
 
     /* current room */
     room_id = json_get_string(root, "current_room", NULL);
@@ -159,16 +299,16 @@ int game_resume(GameState *gs, const char *path)
     if (arr && cJSON_IsArray(arr)) {
         cJSON_ArrayForEach(item, arr) {
             const char *rid = json_get_string(item, "id", NULL);
-            cJSON *obj_arr, *oid_node;
+            cJSON *obj_arr2, *oid_node;
             Room *r = find_room(gs, rid);
             if (!r) continue;
 
             r->visited = json_get_bool(item, "visited", 0);
 
             r->object_count = 0;
-            obj_arr = cJSON_GetObjectItemCaseSensitive(item, "objects");
-            if (obj_arr && cJSON_IsArray(obj_arr)) {
-                cJSON_ArrayForEach(oid_node, obj_arr) {
+            obj_arr2 = cJSON_GetObjectItemCaseSensitive(item, "objects");
+            if (obj_arr2 && cJSON_IsArray(obj_arr2)) {
+                cJSON_ArrayForEach(oid_node, obj_arr2) {
                     const char *oid = cJSON_GetStringValue(oid_node);
                     Object *o = find_object(gs, oid);
                     if (!o) continue;
@@ -179,18 +319,21 @@ int game_resume(GameState *gs, const char *path)
         }
     }
 
-    /* opened object states */
+    /* object states (opened + durability) */
     arr = cJSON_GetObjectItemCaseSensitive(root, "objects");
     if (arr && cJSON_IsArray(arr)) {
         cJSON_ArrayForEach(item, arr) {
             const char *oid = json_get_string(item, "id", NULL);
             Object *o = find_object(gs, oid);
             if (!o) continue;
-            o->opened = json_get_bool(item, "opened", o->opened);
+            if (o->openable)
+                o->opened = json_get_bool(item, "opened", o->opened);
+            if (o->max_durability > 0)
+                o->durability = json_get_int(item, "durability", o->durability);
         }
     }
 
-    /* NPC talked states */
+    /* NPC states (talked + hp + alive) */
     arr = cJSON_GetObjectItemCaseSensitive(root, "npcs");
     if (arr && cJSON_IsArray(arr)) {
         cJSON_ArrayForEach(item, arr) {
@@ -198,8 +341,24 @@ int game_resume(GameState *gs, const char *path)
             NPC *n = find_npc(gs, nid);
             if (!n) continue;
             n->talked = json_get_bool(item, "talked", n->talked);
+            n->alive  = json_get_bool(item, "alive",  n->alive);
+            n->hp     = json_get_int (item, "hp",     n->hp);
         }
     }
+
+    /* --- Phase 4: Combat state --- */
+    gs->player_hp = json_get_int(root, "player_hp", gs->player_hp);
+
+    {
+        const char *wid = json_get_string(root, "equipped_weapon", NULL);
+        gs->equipped_weapon = wid ? find_object(gs, wid) : NULL;
+    }
+    {
+        const char *sid = json_get_string(root, "equipped_shield", NULL);
+        gs->equipped_shield = sid ? find_object(gs, sid) : NULL;
+    }
+
+    gs->pending_hostile = 0;
 
     cJSON_Delete(root);
     return 1;
