@@ -1,0 +1,433 @@
+{
+  "flags": [
+    "spoke_to_elder",
+    "wolves_cleared",
+    "bridge_repaired",
+    "shrine_blessed",
+    "dungeon_unlocked"
+  ],
+
+  "win_condition": ["crown", "enchanted_gem"],
+  "win_message": "{bold}{green}The crown pulses with light as you set the gem into it.\nYou are the rightful ruler of the Forgotten Keep!{/}",
+
+  "objects": [
+    {
+      "id": "torch",
+      "name": "Flickering Torch",
+      "description": "A {yellow}burning torch{/} that casts dancing shadows on the walls.",
+      "pickupable": true
+    },
+    {
+      "id": "rusty_sword",
+      "name": "Rusty Sword",
+      "description": "A worn blade with {red}dried blood{/} on its edge. Still sharp enough.",
+      "is_weapon": true,
+      "damage": 8,
+      "max_durability": 100,
+      "durability": 60
+    },
+    {
+      "id": "wooden_shield",
+      "name": "Wooden Shield",
+      "description": "A battered shield of oak planks bound with iron.",
+      "is_shield": true,
+      "defense": 40,
+      "max_durability": 100,
+      "durability": 80
+    },
+    {
+      "id": "healing_herb",
+      "name": "Healing Herb",
+      "description": "A {green}fragrant herb{/} known for its restorative properties.",
+      "heal": 30,
+      "single_use": true
+    },
+    {
+      "id": "iron_key",
+      "name": "Iron Key",
+      "description": "A heavy key with a {cyan}wolf emblem{/} stamped into the bow.",
+      "use_target": "gatehouse_door",
+      "single_use": true
+    },
+    {
+      "id": "plank",
+      "name": "Sturdy Plank",
+      "description": "A thick oak plank. Could be used to repair something.",
+      "on_use_flags": { "set": ["bridge_repaired"] },
+      "message": "You wedge the plank into the broken bridge. It holds!",
+      "single_use": true
+    },
+    {
+      "id": "silver_key",
+      "name": "Silver Key",
+      "description": "A small {white}silver key{/} engraved with tiny runes.",
+      "single_use": true
+    },
+    {
+      "id": "locked_chest",
+      "name": "Ornate Chest",
+      "description": "A {yellow}gilded chest{/} with a silver lock.",
+      "openable": true,
+      "open_key_id": "silver_key",
+      "pickupable": false,
+      "contains": ["enchanted_gem"],
+      "message": "The chest is locked. You need a {white}silver key{/}."
+    },
+    {
+      "id": "enchanted_gem",
+      "name": "Enchanted Gem",
+      "description": "A {magenta}shimmering gemstone{/} that hums with power.",
+      "on_pickup_flags": { "set": ["dungeon_unlocked"] }
+    },
+    {
+      "id": "crown",
+      "name": "Ancient Crown",
+      "description": "A {yellow}{bold}golden crown{/} with an empty socket for a gem.",
+      "on_pickup_end": null
+    },
+    {
+      "id": "cursed_idol",
+      "name": "Obsidian Idol",
+      "description": "{red}{bold}A dark idol that radiates malice. You feel compelled to touch it...{/}",
+      "on_pickup_end": "lose",
+      "end_message": "{red}The idol's curse consumes you. Darkness fills your vision as your soul is torn away.{/}"
+    },
+    {
+      "id": "old_note",
+      "name": "Torn Note",
+      "description": "A {yellow}faded note{/} that reads:\n\n{cyan}'The elder holds the key to the wolves.\nThe shrine holds the key to the chest.\nThe gem and the crown must be united.'{/}"
+    },
+    {
+      "id": "repair_kit",
+      "name": "Repair Kit",
+      "description": "A leather pouch containing tools and oil for weapon maintenance.",
+      "repair_amount": 40,
+      "single_use": true
+    },
+    {
+      "id": "holy_water",
+      "name": "Holy Water",
+      "description": "A {cyan}glowing vial{/} of consecrated water.",
+      "use_target": "crypt_door",
+      "single_use": true
+    },
+    {
+      "id": "battle_axe",
+      "name": "Battle Axe",
+      "description": "A {bold}massive double-headed axe{/}. Devastatingly powerful.",
+      "is_weapon": true,
+      "damage": 15,
+      "max_durability": -1
+    },
+    {
+      "id": "potion",
+      "name": "Health Potion",
+      "description": "A {red}bubbling red potion{/}. Restores a large amount of health.",
+      "is_template": true,
+      "heal": 50,
+      "single_use": true
+    }
+  ],
+
+  "doors": [
+    {
+      "id": "gatehouse_door",
+      "name": "Gatehouse Portcullis",
+      "description": "A {bold}heavy iron portcullis{/} blocking the way north.",
+      "locked": true,
+      "key_id": "iron_key",
+      "message": "The {bold}portcullis{/} is sealed shut. You need the {cyan}wolf key{/}."
+    },
+    {
+      "id": "crypt_door",
+      "name": "Crypt Seal",
+      "description": "An ancient stone door covered in {red}unholy runes{/}.",
+      "locked": true,
+      "key_id": "holy_water",
+      "message": "The {red}runes glow menacingly{/}. This seal requires something {cyan}holy{/} to break.",
+      "break_key_id": "holy_water",
+      "break_message": "The {cyan}holy water sizzles{/} against the runes. The seal crumbles to dust!"
+    }
+  ],
+
+  "npcs": [
+    {
+      "id": "village_elder",
+      "name": "Village Elder",
+      "description": "A stooped old man with {white}piercing eyes{/} and a long grey beard.",
+      "dialogue": "{cyan}Welcome, stranger. The Keep has been overrun by darkness.\nClear the {red}wolves{/} from the forest path, and I will give you the key to the gatehouse.{/}",
+      "after_dialogue": "{cyan}Have you dealt with the wolves yet? The forest path must be safe.{/}",
+      "gives": "iron_key",
+      "on_talk_flags": { "set": ["spoke_to_elder"] },
+      "healer": true,
+      "heal_amount": 20
+    },
+    {
+      "id": "shrine_spirit",
+      "name": "Shrine Spirit",
+      "description": "A {cyan}translucent figure{/} hovering above the altar, radiating calm.",
+      "dialogue": "{cyan}You have come seeking passage. I sense {bold}courage{/} in you.\nTake this key — it opens the chest in the treasury.\nBut beware the {red}idol{/}. Its touch means death.{/}",
+      "after_dialogue": "{cyan}Go with my blessing, mortal.{/}",
+      "gives": "silver_key",
+      "on_talk_flags": { "set": ["shrine_blessed"] }
+    },
+    {
+      "id": "blacksmith",
+      "name": "Dwarven Blacksmith",
+      "description": "A stout {yellow}dwarf{/} with soot-covered arms and a booming laugh.",
+      "dialogue": "{yellow}Aye! Bring me yer gear and I'll hammer it back to shape!{/}",
+      "after_dialogue": "{yellow}Need somethin' fixed? Just ask!{/}",
+      "repairer": true
+    },
+    {
+      "id": "wolf",
+      "name": "Shadow Wolf",
+      "description": "A {red}snarling wolf{/} with glowing red eyes and shadow-wreathed fur.",
+      "is_template": true,
+      "hostile": true,
+      "hp": 15,
+      "damage": 8,
+      "drops": "healing_herb",
+      "on_death_flags": { "set": ["wolves_cleared"] }
+    },
+    {
+      "id": "skeleton",
+      "name": "Skeleton Guard",
+      "description": "A {white}rattling skeleton{/} in rusted armor, wielding a jagged blade.",
+      "is_template": true,
+      "hostile": true,
+      "hp": 25,
+      "damage": 10
+    },
+    {
+      "id": "crypt_lord",
+      "name": "Crypt Lord",
+      "description": "A {red}{bold}towering undead knight{/} wreathed in dark flames.\nIts hollow eyes burn with hatred.",
+      "hostile": true,
+      "hp": 60,
+      "damage": 15,
+      "drops": "crown",
+      "dialogue": "{red}YOU DARE ENTER MY DOMAIN?{/}",
+      "after_dialogue": "{red}...(silence)...{/}"
+    }
+  ],
+
+  "rooms": [
+    {
+      "id": "start",
+      "name": "Village Square",
+      "description": "You stand in a quiet {green}village square{/}. A crumbling well sits in the center.\nPaths lead in every direction. To the {yellow}north{/}, a dark forest looms.\nTo the {cyan}east{/}, you hear the clang of a hammer.",
+      "first_visit_message": "You awaken with no memory of how you got here. A torn note is clutched in your hand.",
+      "objects": ["old_note", "rusty_sword"],
+      "npcs": ["village_elder"],
+      "exits": {
+        "north": {
+          "room_id": "forest_path",
+          "look_description": "A {green}narrow path{/} winds into a dark forest. You hear {red}growling{/}."
+        },
+        "east": {
+          "room_id": "smithy",
+          "look_description": "A stone building with {yellow}smoke{/} rising from its chimney."
+        },
+        "south": {
+          "room_id": "broken_bridge",
+          "look_description": "A {yellow}wooden bridge{/} spans a deep ravine... or it used to."
+        },
+        "west": {
+          "room_id": "shrine",
+          "require_flag": "spoke_to_elder",
+          "hidden": true,
+          "look_description": "A {cyan}glowing path{/} leads to an ancient shrine in the hillside."
+        }
+      }
+    },
+    {
+      "id": "smithy",
+      "name": "Dwarven Smithy",
+      "description": "The {yellow}heat{/} from the forge hits you like a wall. Weapons and armor line the walls.\nA stout {yellow}dwarf{/} works tirelessly at his anvil.",
+      "objects": ["wooden_shield", "repair_kit"],
+      "npcs": ["blacksmith"],
+      "exits": {
+        "west": {
+          "room_id": "start",
+          "look_description": "The village square lies to the west."
+        }
+      }
+    },
+    {
+      "id": "forest_path",
+      "name": "Dark Forest Path",
+      "description": "Twisted {green}trees{/} crowd the narrow path. {red}Claw marks{/} scar the bark.\nThe air smells of damp earth and something... {red}feral{/}.",
+      "first_visit_message": "{red}A low growl rumbles from the shadows ahead...{/}",
+      "spawns": [
+        { "npc_id": "wolf", "probability": 100, "respawn": false }
+      ],
+      "exits": {
+        "south": {
+          "room_id": "start",
+          "look_description": "The village square is visible through the trees."
+        },
+        "north": {
+          "room_id": "gatehouse",
+          "require_flag": "wolves_cleared",
+          "blocked_message": "{red}Snarling wolves block the path ahead. You must deal with them first!{/}",
+          "look_description": "Beyond the trees, a {bold}stone gatehouse{/} guards the road to the Keep."
+        }
+      }
+    },
+    {
+      "id": "gatehouse",
+      "name": "Ruined Gatehouse",
+      "description": "A crumbling {bold}stone gatehouse{/} straddles the road. An {bold}iron portcullis{/} blocks the way north.\nVines have reclaimed most of the structure.",
+      "exits": {
+        "south": {
+          "room_id": "forest_path",
+          "look_description": "The dark forest path leads back to the village."
+        },
+        "north": {
+          "room_id": "keep_entrance",
+          "door_id": "gatehouse_door",
+          "look_description": "Through the portcullis, you can see the {bold}entrance to the Forgotten Keep{/}."
+        }
+      }
+    },
+    {
+      "id": "broken_bridge",
+      "name": "Broken Bridge",
+      "description": "A {yellow}wooden bridge{/} once spanned this deep ravine. Now only rotting planks\nand frayed rope remain. The gap is too wide to jump.",
+      "first_visit_message": "You notice the bridge could be repaired with a {bold}sturdy plank{/}.",
+      "objects": ["torch"],
+      "exits": {
+        "north": {
+          "room_id": "start",
+          "look_description": "The village square is just up the hill."
+        },
+        "south": {
+          "room_id": "watchtower",
+          "require_flag": "bridge_repaired",
+          "blocked_message": "The bridge is {red}broken{/}. You need something to repair it.",
+          "look_description": "Across the ravine stands an old {bold}watchtower{/}."
+        }
+      }
+    },
+    {
+      "id": "watchtower",
+      "name": "Old Watchtower",
+      "description": "A {bold}stone watchtower{/} overlooking the ravine. Cobwebs fill the corners.\nA weapon rack on the wall still holds one {bold}impressive axe{/}.",
+      "objects": ["battle_axe"],
+      "exits": {
+        "north": {
+          "room_id": "broken_bridge",
+          "look_description": "The repaired bridge leads back across the ravine."
+        }
+      }
+    },
+    {
+      "id": "shrine",
+      "name": "Ancient Shrine",
+      "description": "A {cyan}serene clearing{/} surrounds a moss-covered altar.\nSoft {cyan}light{/} emanates from within the stone, and the air hums with energy.\nA {cyan}translucent figure{/} hovers above the altar.",
+      "first_visit_message": "{cyan}A warm presence fills your mind. You feel... welcome.{/}",
+      "npcs": ["shrine_spirit"],
+      "exits": {
+        "east": {
+          "room_id": "start",
+          "look_description": "The path leads back to the village."
+        }
+      }
+    },
+    {
+      "id": "keep_entrance",
+      "name": "Forgotten Keep — Entrance Hall",
+      "description": "You step into the {bold}grand entrance hall{/} of the Forgotten Keep.\nDust motes dance in shafts of light from shattered windows.\nCorridors branch {yellow}east{/} and {yellow}west{/}. A {red}heavy door{/} leads {bold}down{/}.",
+      "first_visit_message": "{bold}The Keep groans as if alive. Every shadow seems to watch you.{/}",
+      "objects": ["plank"],
+      "spawns": [
+        { "npc_id": "skeleton", "probability": 70, "respawn": false }
+      ],
+      "exits": {
+        "south": {
+          "room_id": "gatehouse",
+          "look_description": "The gatehouse and the road back to the forest."
+        },
+        "east": {
+          "room_id": "treasury",
+          "look_description": "A corridor lined with {yellow}faded tapestries{/}."
+        },
+        "west": {
+          "room_id": "armory",
+          "look_description": "A dark passage. You hear {white}rattling bones{/}."
+        },
+        "down": {
+          "room_id": "crypt_stairs",
+          "require_flag": "dungeon_unlocked",
+          "hidden": true,
+          "look_description": "Stone steps spiral {red}down{/} into darkness."
+        }
+      }
+    },
+    {
+      "id": "armory",
+      "name": "Forgotten Keep — Armory",
+      "description": "Weapon racks line the walls, mostly {red}empty{/} or holding rusted junk.\nA few useful items remain among the wreckage.",
+      "objects": ["holy_water"],
+      "spawns": [
+        { "npc_id": "skeleton", "probability": 80, "respawn": false },
+        { "npc_id": "skeleton", "probability": 50, "respawn": false }
+      ],
+      "exits": {
+        "east": {
+          "room_id": "keep_entrance",
+          "look_description": "The entrance hall of the Keep."
+        }
+      }
+    },
+    {
+      "id": "treasury",
+      "name": "Forgotten Keep — Treasury",
+      "description": "Gold coins are scattered across the floor, but most of the {yellow}treasure{/}\nhas long been looted. An {yellow}ornate chest{/} sits on a raised platform,\nstill sealed. In the corner, a {red}dark idol{/} sits on a pedestal.",
+      "first_visit_message": "{yellow}Your eyes widen at the glint of gold. But something feels wrong here...{/}",
+      "objects": ["locked_chest", "cursed_idol"],
+      "exits": {
+        "west": {
+          "room_id": "keep_entrance",
+          "look_description": "Back to the entrance hall."
+        }
+      }
+    },
+    {
+      "id": "crypt_stairs",
+      "name": "Crypt Stairway",
+      "description": "A {bold}spiraling stone staircase{/} descends into cold darkness.\nThe walls are carved with {red}warnings in a forgotten tongue{/}.\nAt the bottom, an {red}ancient seal{/} blocks the way.",
+      "cutscene": "crypt_landing"
+    },
+    {
+      "id": "crypt_landing",
+      "name": "Crypt Landing",
+      "description": "You stand at the bottom of the stairs. The air is {cyan}freezing{/}.\nAn {red}ancient stone door{/} covered in unholy runes blocks the way forward.",
+      "exits": {
+        "up": {
+          "room_id": "keep_entrance",
+          "look_description": "The stairs lead back up to the Keep entrance."
+        },
+        "north": {
+          "room_id": "crypt",
+          "door_id": "crypt_door",
+          "look_description": "Through cracks in the seal, you see {red}flickering dark flames{/}."
+        }
+      }
+    },
+    {
+      "id": "crypt",
+      "name": "The Crypt of the Forgotten King",
+      "description": "A vast {red}{bold}underground chamber{/} lit by {red}dark flames{/} in iron braziers.\nA massive sarcophagus dominates the center. Before it stands\na {red}{bold}towering undead knight{/}, wreathed in shadow.",
+      "first_visit_message": "{red}{bold}The Crypt Lord rises from the darkness!\n'YOU DARE DISTURB MY REST?'{/}",
+      "npcs": ["crypt_lord"],
+      "exits": {
+        "south": {
+          "room_id": "crypt_landing",
+          "look_description": "The stairs leading back up."
+        }
+      }
+    }
+  ]
+}
