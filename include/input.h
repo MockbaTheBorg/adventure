@@ -35,6 +35,15 @@ void ansi_reset(void);
 void ansi_color(int fg); /* standard ANSI fg color 30-37 */
 void ansi_clear_screen(void);
 
+/*
+ * ansi_print - Print a string, interpreting inline color tags.
+ *
+ * Supported tags: {red}, {green}, {yellow}, {blue}, {magenta}, {cyan},
+ * {white}, {bold}, {/} (reset).  Unknown tags are printed literally.
+ * A literal '{' can be written as '{{'.
+ */
+void ansi_print(const char *text);
+
 /* Convenience color names (standard ANSI fg codes) */
 #define COLOR_DEFAULT  39
 #define COLOR_RED      31
@@ -55,15 +64,17 @@ void ansi_clear_screen(void);
 /*
  * input_direction - Print a direction prompt and read a direction keypress.
  *
- * prompt  - label printed before the direction list (e.g. "Go where?")
- * r       - current room; only exits that exist are shown. If NULL all
- *           standard directions are listed.  Teleport is suppressed when
- *           the room has no teleport exit.
+ * prompt    - label printed before the direction list (e.g. "Go where?")
+ * r         - current room; only exits that exist are shown. If NULL all
+ *             standard directions are listed.  Teleport is suppressed when
+ *             the room has no teleport exit.
+ * dir_mask  - bitmask of visible directions (bit d set = direction d shown).
+ *             Pass 0x7F to show all directions that have exits.
  *
  * Returns a DIR_* index, or -1 if the key is not a valid direction.
  * Echoes the chosen direction name to stdout.
  */
-int input_direction(const char *prompt, const Room *r);
+int input_direction(const char *prompt, const Room *r, int dir_mask);
 
 /*
  * input_pick_object - Show a numbered list of objects and let the player

@@ -15,6 +15,43 @@
  * ------------------------------------------------------------------------- */
 
 /*
+ * exit_conditions_met - Check whether a conditional exit's requirements are
+ * all satisfied.  Returns 1 if the exit is passable, 0 otherwise.
+ * An exit with no conditions always returns 1.
+ */
+static int exit_conditions_met(const GameState *gs, const Exit *ex)
+{
+    if (ex->require_flag && !flag_check(gs, ex->require_flag))
+        return 0;
+    if (ex->require_item) {
+        int i, found = 0;
+        for (i = 0; i < gs->inventory.count; i++) {
+            if (strcmp(gs->inventory.items[i]->id, ex->require_item) == 0) {
+                found = 1;
+                break;
+            }
+        }
+        if (!found) return 0;
+    }
+    if (ex->require_npc_dead) {
+        NPC *n = find_npc((GameState *)gs, ex->require_npc_dead);
+        if (!n || n->alive) return 0;
+    }
+    return 1;
+}
+
+/*
+ * exit_visible - Returns 1 if the exit should be displayed to the player.
+ * Hidden exits are invisible until their conditions are met.
+ */
+static int exit_visible(const GameState *gs, const Exit *ex)
+{
+    if (!ex->room_id) return 0;
+    if (ex->hidden && !exit_conditions_met(gs, ex)) return 0;
+    return 1;
+}
+
+/*
  * print_room - Display current room: name, HP bar, equipped gear, description,
  * exits, objects, NPCs.  Clears the screen first.
  * No first_visit_message, no cutscene logic.
@@ -56,8 +93,10 @@ void print_room(const GameState *gs)
         printf("\n");
     }
 
-    if (r->description && r->description[0] != '\0')
-        printf("%s\n", r->description);
+    if (r->description && r->description[0] != '\0') {
+        ansi_print(r->description);
+        printf("\n");
+    }
 
     /* Exits summary */
     printf("\n");
@@ -66,9 +105,11 @@ void print_room(const GameState *gs)
     ansi_reset();
     for (d = 0; d < DIR_COUNT; d++) {
         const Exit *ex = &r->exits[d];
-        if (!ex->room_id) continue;
+        if (!exit_visible(gs, ex)) continue;
         printf(" [%c]%s", dir_key[d], dir_name[d] + 1);
-        if (ex->door_id) {
+        if (!exit_conditions_met(gs, ex)) {
+            printf("(blocked)");
+        } else if (ex->door_id) {
             Door *door = find_door((GameState *)gs, ex->door_id);
             if (door && !door->destroyed && door->locked)
                 printf("(locked)");
@@ -133,7 +174,8 @@ static void inspect_object(const Object *o)
     ansi_bold();
     printf("%s\n", DNAME(o));
     ansi_reset();
-    printf("%s\n", o->description ? o->description : MSG_INSPECT_NOTHING);
+    ansi_print(o->description ? o->description : MSG_INSPECT_NOTHING);
+    printf("\n");
     if (o->max_durability > 0) {
         combat_hp_bar("Durability",
                       o->durability, o->max_durability, 20);
@@ -144,6 +186,8 @@ static void inspect_object(const Object *o)
         printf("Shield  defense: %d%%\n", o->defense);
     if (o->heal > 0)
         printf("Heals: %d HP\n", o->heal);
+    if (o->openable && !o->opened && o->open_key_id)
+        printf("Status: locked\n");
 }
 
 /*
@@ -155,7 +199,8 @@ static void inspect_door(const Door *d)
     ansi_bold();
     printf("%s\n", DNAME(d));
     ansi_reset();
-    printf("%s\n", d->description ? d->description : MSG_INSPECT_NOTHING);
+    ansi_print(d->description ? d->description : MSG_INSPECT_NOTHING);
+    printf("\n");
     if (d->destroyed)   status = "destroyed";
     else if (d->locked) status = "locked";
     else                status = "open";
@@ -178,7 +223,8 @@ static void inspect_npc(const NPC *n)
     }
     if (n->max_hp > 0)
         combat_hp_bar("HP", n->hp, n->max_hp, 20);
-    printf("%s\n", n->description ? n->description : MSG_INSPECT_NOTHING);
+    ansi_print(n->description ? n->description : MSG_INSPECT_NOTHING);
+    printf("\n");
 }
 
 /*
@@ -238,14 +284,17 @@ void room_enter(GameState *gs, Room *dest)
         Room *next;
         ansi_clear_screen();
         printf("\n");
-        if (dest->description && dest->description[0] != '\0')
-            printf("%s\n", dest->description);
+        if (dest->description && dest->description[0] != '\0') {
+            ansi_print(dest->description);
+            printf("\n");
+        }
 
         if (first_visit && dest->first_visit_message
                         && dest->first_visit_message[0] != '\0') {
             printf("\n");
             ansi_color(COLOR_YELLOW);
-            printf("%s\n", dest->first_visit_message);
+            ansi_print(dest->first_visit_message);
+            printf("\n");
             ansi_reset();
         }
 
@@ -273,7 +322,8 @@ void room_enter(GameState *gs, Room *dest)
                         && dest->first_visit_message[0] != '\0') {
             printf("\n");
             ansi_color(COLOR_YELLOW);
-            printf("%s\n", dest->first_visit_message);
+            ansi_print(dest->first_visit_message);
+            printf("\n");
             ansi_reset();
         }
 
@@ -311,8 +361,17 @@ static void do_go(GameState *gs, int dir)
     }
 
     ex = &r->exits[dir];
-    if (!ex->room_id) {
+    if (!ex->room_id || (ex->hidden && !exit_conditions_met(gs, ex))) {
         printf("%s\n", MSG_NO_EXIT);
+        return;
+    }
+
+    /* Check conditional exit requirements */
+    if (!exit_conditions_met(gs, ex)) {
+        const char *msg = ex->blocked_message
+                        ? ex->blocked_message : MSG_EXIT_BLOCKED;
+        ansi_print(msg);
+        printf("\n");
         return;
     }
 
@@ -320,7 +379,8 @@ static void do_go(GameState *gs, int dir)
         door = find_door(gs, ex->door_id);
         if (door && door->locked && !door->destroyed) {
             const char *msg = door->message ? door->message : MSG_DOOR_LOCKED;
-            printf("%s\n", msg);
+            ansi_print(msg);
+            printf("\n");
             return;
         }
     }
@@ -339,15 +399,27 @@ static void do_go(GameState *gs, int dir)
  * Command implementations
  * ------------------------------------------------------------------------- */
 
+/*
+ * build_dir_mask - Build a bitmask of visible directions for the current room.
+ */
+static int build_dir_mask(const GameState *gs)
+{
+    int d, mask = 0;
+    for (d = 0; d < DIR_COUNT; d++)
+        if (exit_visible(gs, &gs->current_room->exits[d]))
+            mask |= (1 << d);
+    return mask;
+}
+
 void cmd_go(GameState *gs)
 {
-    int dir = input_direction("Go where?", gs->current_room);
+    int dir = input_direction("Go where?", gs->current_room, build_dir_mask(gs));
     do_go(gs, dir);
 }
 
 void cmd_look(GameState *gs)
 {
-    int dir = input_direction("Look where?", gs->current_room);
+    int dir = input_direction("Look where?", gs->current_room, build_dir_mask(gs));
     const Exit *ex;
 
     if (dir == INPUT_ESC) { cancel_command(gs); return; }
@@ -359,14 +431,15 @@ void cmd_look(GameState *gs)
 
     ex = &gs->current_room->exits[dir];
 
-    if (!ex->room_id) {
+    if (!exit_visible(gs, ex)) {
         printf("%s\n", MSG_LOOK_NOTHING);
         return;
     }
 
-    if (ex->look_description && ex->look_description[0] != '\0')
-        printf("%s\n", ex->look_description);
-    else
+    if (ex->look_description && ex->look_description[0] != '\0') {
+        ansi_print(ex->look_description);
+        printf("\n");
+    } else
         printf("%s\n", MSG_LOOK_NOTHING);
 
     if (ex->door_id) {
@@ -521,6 +594,7 @@ void cmd_pickup(GameState *gs)
     r->objects[idx] = r->objects[--r->object_count];
     gs->inventory.items[gs->inventory.count++] = o;
     printf("%s\n", MSG_PICKUP_OK);
+    apply_flags(gs, &o->on_pickup_flags);
     check_obj_end(gs, o, o->on_pickup_end);
     check_inv_win(gs);
 }
@@ -573,6 +647,7 @@ void cmd_use(GameState *gs)
         if (o->single_use)
             gs->inventory.items[idx] =
                 gs->inventory.items[--gs->inventory.count];
+        apply_flags(gs, &o->on_use_flags);
         return;
     }
 
@@ -607,10 +682,12 @@ void cmd_use(GameState *gs)
         target_door->locked    = 0;
         bmsg = target_door->break_message
                ? target_door->break_message : MSG_DOOR_DESTROYED;
-        printf("%s\n", bmsg);
+        ansi_print(bmsg);
+        printf("\n");
         if (o->single_use)
             gs->inventory.items[idx] =
                 gs->inventory.items[--gs->inventory.count];
+        apply_flags(gs, &o->on_use_flags);
         check_obj_end(gs, o, o->on_use_end);
         return;
     }
@@ -633,6 +710,7 @@ void cmd_use(GameState *gs)
     if (o->single_use)
         gs->inventory.items[idx] = gs->inventory.items[--gs->inventory.count];
 
+    apply_flags(gs, &o->on_use_flags);
     check_obj_end(gs, o, o->on_use_end);
 }
 
@@ -658,6 +736,26 @@ void cmd_open(GameState *gs)
     if (o->opened) {
         printf("%s\n", o->message ? o->message : MSG_ALREADY_OPENED);
         return;
+    }
+
+    /* Locked container: check for key in inventory */
+    if (o->open_key_id) {
+        int k, found_key;
+        found_key = -1;
+        for (k = 0; k < gs->inventory.count; k++) {
+            if (strcmp(gs->inventory.items[k]->id, o->open_key_id) == 0) {
+                found_key = k;
+                break;
+            }
+        }
+        if (found_key < 0) {
+            printf("%s\n", o->message ? o->message : MSG_OPEN_LOCKED);
+            return;
+        }
+        printf("You use the %s.\n", DNAME(gs->inventory.items[found_key]));
+        if (gs->inventory.items[found_key]->single_use)
+            gs->inventory.items[found_key] =
+                gs->inventory.items[--gs->inventory.count];
     }
 
     o->opened = 1;
@@ -697,7 +795,8 @@ void cmd_talk(GameState *gs)
 
     if (!n->talked) {
         dialogue = n->dialogue ? n->dialogue : MSG_NPC_NOTHING;
-        printf("%s\n", dialogue);
+        ansi_print(dialogue);
+        printf("\n");
         n->talked = 1;
 
         /* Give object on first talk (handle templates) */
@@ -726,11 +825,13 @@ void cmd_talk(GameState *gs)
                 }
             }
         }
+        apply_flags(gs, &n->on_talk_flags);
     } else {
         dialogue = n->after_dialogue ? n->after_dialogue
                  : n->dialogue       ? n->dialogue
                  : MSG_NPC_NOTHING;
-        printf("%s\n", dialogue);
+        ansi_print(dialogue);
+        printf("\n");
     }
 
     /* Healer: restore HP (on any talk) */

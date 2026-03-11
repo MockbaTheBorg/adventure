@@ -130,6 +130,17 @@ int game_save(const GameState *gs, const char *path)
         cJSON_AddItemToArray(npcs_arr, npc_node);
     }
 
+    /* flags */
+    {
+        cJSON *flags_arr = cJSON_AddArrayToObject(root, "flags");
+        for (i = 0; i < gs->flag_count; i++) {
+            cJSON *flag_node = cJSON_CreateObject();
+            cJSON_AddStringToObject(flag_node, "name",  gs->flag_names[i]);
+            cJSON_AddBoolToObject  (flag_node, "value", gs->flag_values[i]);
+            cJSON_AddItemToArray(flags_arr, flag_node);
+        }
+    }
+
     /* visited rooms shortlist */
     visited_arr = cJSON_AddArrayToObject(root, "visited_rooms");
     for (i = 0; i < gs->room_count; i++)
@@ -332,6 +343,20 @@ int game_resume(GameState *gs, const char *path)
     }
 
     gs->pending_hostile = 0;
+
+    /* --- Phase 5: Flags --- */
+    arr = cJSON_GetObjectItemCaseSensitive(root, "flags");
+    if (arr && cJSON_IsArray(arr)) {
+        cJSON_ArrayForEach(item, arr) {
+            const char *fname = json_get_string(item, "name", NULL);
+            int         fval  = json_get_bool  (item, "value", 0);
+            if (!fname) continue;
+            if (fval)
+                flag_set(gs, fname);
+            else
+                flag_clear(gs, fname);
+        }
+    }
 
     cJSON_Delete(root);
     return 1;

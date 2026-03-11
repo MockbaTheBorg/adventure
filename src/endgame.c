@@ -23,9 +23,10 @@ void game_end(const char *condition, const char *message)
     ansi_reset();
 
     printf("\n");
-    if (message && message[0] != '\0')
-        printf("%s\n", message);
-    else
+    if (message && message[0] != '\0') {
+        ansi_print(message);
+        printf("\n");
+    } else
         printf("%s\n", win ? MSG_WIN_DEFAULT : MSG_LOSE_DEFAULT);
 
     printf("\n");

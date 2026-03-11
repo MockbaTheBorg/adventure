@@ -112,6 +112,7 @@ void combat_attack(GameState *gs, NPC *npc)
         printf("> %s has been defeated!\n",
                DNAME(npc));
         combat_drop_loot(gs, npc);
+        apply_flags(gs, &npc->on_death_flags);
         return;
     }
 

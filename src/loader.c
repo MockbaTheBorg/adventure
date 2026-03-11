@@ -97,6 +97,47 @@ static char *dup(const char *src)
 }
 
 /* -------------------------------------------------------------------------
+ * FlagTrigger loader helper
+ * ------------------------------------------------------------------------- */
+
+static void load_flag_trigger(const cJSON *parent, const char *field,
+                              FlagTrigger *ft)
+{
+    const cJSON *node, *arr, *elem;
+
+    ft->set_count   = 0;
+    ft->clear_count = 0;
+
+    node = cJSON_GetObjectItemCaseSensitive(parent, field);
+    if (!node || !cJSON_IsObject(node)) return;
+
+    arr = cJSON_GetObjectItemCaseSensitive(node, "set");
+    if (arr && cJSON_IsArray(arr)) {
+        cJSON_ArrayForEach(elem, arr) {
+            const char *s = cJSON_GetStringValue(elem);
+            if (s && ft->set_count < MAX_FLAG_TRIGGERS)
+                ft->set[ft->set_count++] = dup(s);
+        }
+    }
+
+    arr = cJSON_GetObjectItemCaseSensitive(node, "clear");
+    if (arr && cJSON_IsArray(arr)) {
+        cJSON_ArrayForEach(elem, arr) {
+            const char *s = cJSON_GetStringValue(elem);
+            if (s && ft->clear_count < MAX_FLAG_TRIGGERS)
+                ft->clear[ft->clear_count++] = dup(s);
+        }
+    }
+}
+
+static void free_flag_trigger(FlagTrigger *ft)
+{
+    int i;
+    for (i = 0; i < ft->set_count; i++)   free(ft->set[i]);
+    for (i = 0; i < ft->clear_count; i++) free(ft->clear[i]);
+}
+
+/* -------------------------------------------------------------------------
  * Loaders for each data type
  * ------------------------------------------------------------------------- */
 
@@ -132,6 +173,7 @@ static int load_objects(GameState *gs, const cJSON *root)
         o->pickupable     = json_get_bool(item, "pickupable", 1);
         o->single_use     = json_get_bool(item, "single_use",  0);
         o->openable       = json_get_bool(item, "openable",    0);
+        o->open_key_id    = dup(json_get_string(item, "open_key_id", NULL));
         o->opened         = 0;
         o->on_pickup_end  = dup(json_get_string(item, "on_pickup_end", NULL));
         o->on_use_end     = dup(json_get_string(item, "on_use_end",    NULL));
@@ -174,6 +216,10 @@ static int load_objects(GameState *gs, const cJSON *root)
                 }
             }
         }
+
+        /* Flag triggers */
+        load_flag_trigger(item, "on_pickup_flags", &o->on_pickup_flags);
+        load_flag_trigger(item, "on_use_flags",    &o->on_use_flags);
     }
     return 1;
 }
@@ -258,6 +304,10 @@ static int load_npcs(GameState *gs, const cJSON *root)
         n->repairer     = json_get_bool(item, "repairer",     0);
         n->is_template  = json_get_bool(item, "is_template",  0);
         n->is_dynamic   = 0;
+
+        /* Flag triggers */
+        load_flag_trigger(item, "on_talk_flags",  &n->on_talk_flags);
+        load_flag_trigger(item, "on_death_flags", &n->on_death_flags);
     }
     return 1;
 }
@@ -311,15 +361,18 @@ static int load_rooms(GameState *gs, const cJSON *root)
                 ex_node = cJSON_GetObjectItemCaseSensitive(exits_node,
                                                            dir_name[d]);
             if (!ex_node) {
-                ex->room_id          = NULL;
-                ex->door_id          = NULL;
-                ex->look_description = NULL;
+                memset(ex, 0, sizeof(*ex));
                 continue;
             }
 
             ex->room_id          = dup(json_get_string(ex_node, "room_id",          NULL));
             ex->door_id          = dup(json_get_string(ex_node, "door_id",          NULL));
             ex->look_description = dup(json_get_string(ex_node, "look_description", NULL));
+            ex->require_flag     = dup(json_get_string(ex_node, "require_flag",     NULL));
+            ex->require_item     = dup(json_get_string(ex_node, "require_item",     NULL));
+            ex->require_npc_dead = dup(json_get_string(ex_node, "require_npc_dead", NULL));
+            ex->hidden           = json_get_bool(ex_node, "hidden", 0);
+            ex->blocked_message  = dup(json_get_string(ex_node, "blocked_message",  NULL));
         }
 
         /* --- initial objects in this room --- */
@@ -432,6 +485,23 @@ int game_load(GameState *gs, const char *path)
         gs->win_message = dup(json_get_string(root, "win_message", NULL));
     }
 
+    /* Top-level flag declarations (optional; flags are also auto-created) */
+    {
+        const cJSON *fl = cJSON_GetObjectItemCaseSensitive(root, "flags");
+        const cJSON *fid;
+        gs->flag_count = 0;
+        if (fl && cJSON_IsArray(fl)) {
+            cJSON_ArrayForEach(fid, fl) {
+                const char *s = cJSON_GetStringValue(fid);
+                if (s && gs->flag_count < MAX_FLAGS) {
+                    gs->flag_names[gs->flag_count] = dup(s);
+                    gs->flag_values[gs->flag_count] = 0;
+                    gs->flag_count++;
+                }
+            }
+        }
+    }
+
     cJSON_Delete(root);
 
     /* Validate that a "start" room exists */
@@ -461,11 +531,14 @@ static void free_object(Object *o)
         free(o->id);
         return;
     }
+    free_flag_trigger(&o->on_pickup_flags);
+    free_flag_trigger(&o->on_use_flags);
     free(o->id);
     free(o->name);
     free(o->description);
     free(o->message);
     free(o->use_target);
+    free(o->open_key_id);
     free(o->on_pickup_end);
     free(o->on_use_end);
     free(o->end_message);
@@ -491,6 +564,8 @@ static void free_npc(NPC *n)
         free(n->id);
         return;
     }
+    free_flag_trigger(&n->on_talk_flags);
+    free_flag_trigger(&n->on_death_flags);
     free(n->id);
     free(n->name);
     free(n->description);
@@ -514,6 +589,10 @@ static void free_room(Room *r)
         free(r->exits[d].room_id);
         free(r->exits[d].door_id);
         free(r->exits[d].look_description);
+        free(r->exits[d].require_flag);
+        free(r->exits[d].require_item);
+        free(r->exits[d].require_npc_dead);
+        free(r->exits[d].blocked_message);
     }
     for (s = 0; s < r->spawn_count; s++)
         free(r->spawns[s].npc_id);
@@ -528,6 +607,7 @@ void game_free(GameState *gs)
     for (i = 0; i < gs->npc_count;    i++) free_npc   (&gs->npcs[i]);
     for (i = 0; i < gs->room_count;   i++) free_room  (&gs->rooms[i]);
     for (i = 0; i < gs->win_items_count; i++) free(gs->win_items[i]);
+    for (i = 0; i < gs->flag_count; i++) free(gs->flag_names[i]);
     free(gs->win_message);
     free(gs->save_path);
     memset(gs, 0, sizeof(*gs));
@@ -682,4 +762,62 @@ void spawn_room_npcs(GameState *gs, Room *room)
 
         room->npcs[room->npc_count++] = npc;
     }
+}
+
+/* -------------------------------------------------------------------------
+ * Flag system helpers
+ * ------------------------------------------------------------------------- */
+
+/* Find flag index by name; returns -1 if not found. */
+static int flag_find(const GameState *gs, const char *name)
+{
+    int i;
+    if (!name) return -1;
+    for (i = 0; i < gs->flag_count; i++)
+        if (strcmp(gs->flag_names[i], name) == 0) return i;
+    return -1;
+}
+
+void flag_set(GameState *gs, const char *name)
+{
+    int idx;
+    if (!name) return;
+    idx = flag_find(gs, name);
+    if (idx >= 0) {
+        gs->flag_values[idx] = 1;
+        return;
+    }
+    /* Auto-create */
+    if (gs->flag_count >= MAX_FLAGS) {
+        fprintf(stderr, "warning: flag limit reached, cannot set '%s'\n", name);
+        return;
+    }
+    gs->flag_names[gs->flag_count] = dup(name);
+    gs->flag_values[gs->flag_count] = 1;
+    gs->flag_count++;
+}
+
+void flag_clear(GameState *gs, const char *name)
+{
+    int idx;
+    if (!name) return;
+    idx = flag_find(gs, name);
+    if (idx >= 0) gs->flag_values[idx] = 0;
+}
+
+int flag_check(const GameState *gs, const char *name)
+{
+    int idx;
+    if (!name) return 0;
+    idx = flag_find(gs, name);
+    return (idx >= 0) ? gs->flag_values[idx] : 0;
+}
+
+void apply_flags(GameState *gs, const FlagTrigger *ft)
+{
+    int i;
+    for (i = 0; i < ft->set_count; i++)
+        flag_set(gs, ft->set[i]);
+    for (i = 0; i < ft->clear_count; i++)
+        flag_clear(gs, ft->clear[i]);
 }

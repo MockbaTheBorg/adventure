@@ -11,6 +11,7 @@
 
 /* Movement */
 #define MSG_NO_EXIT          "You can't go that way."
+#define MSG_EXIT_BLOCKED     "Something prevents you from going that way."
 #define MSG_DOOR_LOCKED      "This door is locked."
 #define MSG_DOOR_UNLOCKED    "The door swings open."
 #define MSG_DOOR_ALREADY_OPEN "It's already open."
@@ -43,6 +44,7 @@
 
 /* Opening containers */
 #define MSG_OPEN_NOTHING     "There's nothing to open here."
+#define MSG_OPEN_LOCKED      "It's locked."
 #define MSG_ALREADY_OPENED   "It's already open."
 #define MSG_OPEN_OK          "Opened."
 

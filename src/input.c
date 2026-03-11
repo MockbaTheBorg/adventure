@@ -58,6 +58,85 @@ void ansi_clear_screen(void)
     printf("\033[2J\033[H");
 }
 
+/*
+ * ansi_print - Print text with inline color tags.
+ *
+ * Tags: {red} {green} {yellow} {blue} {magenta} {cyan} {white} {bold} {/}
+ * Escape a literal brace: {{ produces {
+ * Unknown tags are printed as-is (including braces).
+ */
+void ansi_print(const char *text)
+{
+    static const struct { const char *tag; int code; } colors[] = {
+        { "red",     COLOR_RED     },
+        { "green",   COLOR_GREEN   },
+        { "yellow",  COLOR_YELLOW  },
+        { "blue",    COLOR_BLUE    },
+        { "magenta", COLOR_MAGENTA },
+        { "cyan",    COLOR_CYAN    },
+        { "white",   COLOR_WHITE   },
+        { NULL, 0 }
+    };
+    const char *p;
+
+    if (!text) return;
+
+    for (p = text; *p; p++) {
+        if (*p == '{') {
+            const char *end;
+            int len, i, matched;
+
+            /* {{ => literal '{' */
+            if (*(p + 1) == '{') {
+                putchar('{');
+                p++;
+                continue;
+            }
+
+            end = strchr(p + 1, '}');
+            if (!end) {
+                putchar('{');
+                continue;
+            }
+
+            len = (int)(end - p - 1);
+            matched = 0;
+
+            /* {/} = reset */
+            if (len == 1 && *(p + 1) == '/') {
+                ansi_reset();
+                p = end;
+                matched = 1;
+            }
+
+            /* {bold} */
+            if (!matched && len == 4 && strncmp(p + 1, "bold", 4) == 0) {
+                ansi_bold();
+                p = end;
+                matched = 1;
+            }
+
+            /* color tags */
+            if (!matched) {
+                for (i = 0; colors[i].tag; i++) {
+                    if ((int)strlen(colors[i].tag) == len
+                        && strncmp(p + 1, colors[i].tag, (size_t)len) == 0) {
+                        ansi_color(colors[i].code);
+                        p = end;
+                        matched = 1;
+                        break;
+                    }
+                }
+            }
+
+            if (!matched)
+                putchar('{');
+        } else {
+            putchar(*p);
+        }
+    }
+}
+
 /* -------------------------------------------------------------------------
  * Line input (cooked mode)
  * ------------------------------------------------------------------------- */
@@ -80,7 +159,7 @@ void term_readline(char *buf, int max_len)
  * Direction input
  * ------------------------------------------------------------------------- */
 
-int input_direction(const char *prompt, const Room *r)
+int input_direction(const char *prompt, const Room *r, int dir_mask)
 {
     char c;
     int  dir, d, first;
@@ -91,6 +170,7 @@ int input_direction(const char *prompt, const Room *r)
     first = 1;
     for (d = 0; d < DIR_COUNT; d++) {
         if (r && !r->exits[d].room_id) continue; /* skip missing exits */
+        if (!(dir_mask & (1 << d))) continue;     /* skip hidden exits  */
         if (!first) printf("  ");
         printf("[%c]%s", dir_key[d], dir_name[d] + 1);
         first = 0;

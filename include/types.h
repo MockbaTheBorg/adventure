@@ -36,6 +36,18 @@ extern const char *dir_name[DIR_COUNT];   /* "north", "south", ... "teleport" */
 extern const char  dir_key[DIR_COUNT];    /* 'n', 's', 'e', 'w', 'u', 'd', 't' */
 
 /* -------------------------------------------------------------------------
+ * FlagTrigger  (set/clear lists attached to objects and NPCs)
+ * ------------------------------------------------------------------------- */
+#define MAX_FLAG_TRIGGERS 8
+
+typedef struct FlagTrigger {
+    char *set[MAX_FLAG_TRIGGERS];    /* flag names to set   */
+    int   set_count;
+    char *clear[MAX_FLAG_TRIGGERS];  /* flag names to clear */
+    int   clear_count;
+} FlagTrigger;
+
+/* -------------------------------------------------------------------------
  * Door
  * ------------------------------------------------------------------------- */
 typedef struct Door {
@@ -74,6 +86,9 @@ typedef struct NPC {
     int   damage;         /* counter-attack damage per round            */
     int   alive;          /* runtime: 1 = active; 0 = defeated          */
     char *drops;          /* object id dropped on death; NULL = none    */
+    /* Flag triggers */
+    FlagTrigger on_talk_flags;  /* flags set/cleared on first talk     */
+    FlagTrigger on_death_flags; /* flags set/cleared when defeated     */
     /* Services */
     int   healer;         /* 1 = heals player on [T]alk                 */
     int   heal_amount;    /* HP restored per Talk                       */
@@ -101,6 +116,7 @@ typedef struct Object {
     int   single_use;   /* 1 = removed from inventory after successful
                            use (e.g. a one-time key)                  */
     int   openable;     /* 1 = can be opened with [O]pen command      */
+    char *open_key_id;  /* id of Object needed to open (NULL = no key)*/
     int   opened;       /* runtime: 1 = has already been opened       */
     char *contains[OBJ_MAX_CONTAINS]; /* object ids released into room
                            when this object is opened                 */
@@ -112,6 +128,9 @@ typedef struct Object {
                             NULL = no end effect                      */
     char *end_message;   /* text shown on the end screen;
                             NULL → MSG_WIN_DEFAULT / MSG_LOSE_DEFAULT */
+    /* Flag triggers */
+    FlagTrigger on_pickup_flags; /* flags set/cleared on successful pickup */
+    FlagTrigger on_use_flags;    /* flags set/cleared on successful use    */
     /* Equipment */
     int  is_weapon;      /* 1 = can equip in weapon slot               */
     int  is_shield;      /* 1 = can equip in shield slot               */
@@ -147,6 +166,13 @@ typedef struct Exit {
     char *room_id;          /* destination room id; NULL = no exit    */
     char *door_id;          /* blocking Door id; NULL = no door       */
     char *look_description; /* shown on [L]ook; NULL → fallback       */
+    /* Conditional exit fields */
+    char *require_flag;     /* flag must be set (NULL = no flag req)  */
+    char *require_item;     /* item must be in inventory (NULL = none)*/
+    char *require_npc_dead; /* NPC must be defeated (NULL = none)     */
+    int   hidden;           /* 1 = invisible until conditions met     */
+    char *blocked_message;  /* shown when conditions not met;
+                               NULL → MSG_EXIT_BLOCKED fallback      */
 } Exit;
 
 /* -------------------------------------------------------------------------
@@ -224,6 +250,12 @@ typedef struct GameState {
     char *win_items[MAX_WIN_ITEMS];   /* object ids required to win       */
     int   win_items_count;
     char *win_message;                /* end-screen text; NULL → default  */
+
+    /* Global flags */
+    #define MAX_FLAGS 64
+    char *flag_names[MAX_FLAGS];   /* declared flag name strings        */
+    int   flag_values[MAX_FLAGS];  /* 0 = cleared, 1 = set             */
+    int   flag_count;
 
     /* Combat state */
     int     player_hp;          /* 0-100; initialised to 100            */

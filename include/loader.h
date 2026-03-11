@@ -52,5 +52,18 @@ NPC *create_npc_from_template(GameState *gs, NPC *tmpl, const char *new_id);
  */
 void spawn_room_npcs(GameState *gs, Room *room);
 
+/*
+ * Flag system helpers.
+ *
+ * flag_set   - Set a flag to 1 (auto-creates if not yet declared).
+ * flag_clear - Set a flag to 0 (no-op if flag doesn't exist).
+ * flag_check - Return 1 if flag is set, 0 otherwise.
+ * apply_flags - Apply a FlagTrigger (set all its "set" flags, clear its "clear" flags).
+ */
+void flag_set   (GameState *gs, const char *name);
+void flag_clear (GameState *gs, const char *name);
+int  flag_check (const GameState *gs, const char *name);
+void apply_flags(GameState *gs, const FlagTrigger *ft);
+
 #endif /* LOADER_H */
 

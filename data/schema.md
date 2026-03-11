@@ -45,6 +45,8 @@ When **all** listed objects are simultaneously in the player's inventory
   "pickupable":    true,                (optional, default true) can player carry it?
   "single_use":    false,               (optional, default false) removed from inventory after use
   "openable":      false,               (optional, default false) can be opened with [O]pen
+  "open_key_id":   "silver_key",       (optional) id of Object required in inventory to open;
+                                        NULL = no key needed. Key is consumed if single_use.
   "contains":      ["old_map"],         (optional) object ids released into room when opened
   "use_target":    "cellar_door",       (optional) id of the Door this object unlocks
   "message":       "You can't lift it." (optional) shown when pickup blocked or use fails
@@ -59,6 +61,8 @@ When **all** listed objects are simultaneously in the player's inventory
   "durability":    80,                  (optional) starting durability (0-100 scale); defaults to max_durability if absent
   "heal":          30,                  (optional, default 0) HP restored when player uses this item (0 = no heal)
   "repair_amount": 25,                  (optional, default 0) durability restored per use as a repair kit (0 = not a kit)
+  "on_pickup_flags": {"set":["flag1"],"clear":["flag2"]},  (optional) flags to set/clear on pickup
+  "on_use_flags":    {"set":["flag3"]},                    (optional) flags to set/clear on successful use
   "is_template":   true,                (optional, default false) prototype for dynamic spawning; never placed in world
   "template_base": "sword"              (optional) base name used when generating numbered instance ids (e.g. "sword_01")
 }
@@ -66,6 +70,10 @@ When **all** listed objects are simultaneously in the player's inventory
 
 - If `pickupable` is `false` and `message` is absent, the engine shows
   `"You can't pick that up."`
+- If `open_key_id` is set on an openable object, the player must have the
+  named object in inventory to open it.  If the key has `"single_use": true`
+  it is consumed on use.  If no key is held, `message` (or `"It's locked."`)
+  is shown.
 - If `use_target` is absent or the target door is not reachable, the
   engine shows `message` or `"Nothing happens."`
 - `on_pickup_end` fires only on a successful pickup (object is pickupable
@@ -104,6 +112,8 @@ When **all** listed objects are simultaneously in the player's inventory
   "healer":         true,               (optional, default false) restores player HP on every [T]alk
   "heal_amount":    15,                 (optional, default 0) HP restored per talk when healer is true
   "repairer":       true,               (optional, default false) repairs all equipped gear to max via [R]epair
+  "on_talk_flags":  {"set":["quest_accepted"]},  (optional) flags to set/clear on first talk
+  "on_death_flags": {"set":["dragon_slain"]},    (optional) flags to set/clear when defeated
   "is_template":    true                (optional, default false) prototype for dynamic spawning; never placed in world
 }
 ```
@@ -217,7 +227,12 @@ When **all** listed objects are simultaneously in the player's inventory
 {
   "room_id":          "cellar",                (required) destination room id
   "door_id":          "cellar_door",           (optional) id of blocking Door
-  "look_description": "Darkness below..."      (optional) shown on [L]ook
+  "look_description": "Darkness below...",     (optional) shown on [L]ook
+  "require_flag":     "bridge_repaired",       (optional) flag that must be set
+  "require_item":     "gold_key",              (optional) object id that must be in inventory
+  "require_npc_dead": "dragon",                (optional) NPC id that must be defeated
+  "hidden":           true,                    (optional, default false) invisible until conditions met
+  "blocked_message":  "The bridge is broken."  (optional) shown when conditions not met
 }
 ```
 
@@ -225,6 +240,30 @@ When **all** listed objects are simultaneously in the player's inventory
 - If `door_id` references a locked Door, movement is blocked and the
   door's `message` (or the default) is shown.
 - A `teleport` exit works identically to any other direction.
+
+### Conditional exits
+
+Exits can have one or more conditions that must **all** be satisfied
+(AND logic) before the player can pass:
+
+| Field              | Check                                        |
+|--------------------|----------------------------------------------|
+| `require_flag`     | Named flag must be set (see Flag system)     |
+| `require_item`     | Named object must be in player's inventory   |
+| `require_npc_dead` | Named NPC must have `alive = 0` (defeated)   |
+
+If **any** condition is not met:
+- **`hidden: true`** — the exit is completely invisible in the exits list,
+  direction prompt, and `[L]ook`.  It appears only once all conditions
+  are satisfied.
+- **`hidden: false`** (default) — the exit is shown with a `(blocked)`
+  tag.  Attempting to go that way shows `blocked_message` (or the
+  fallback `"Something prevents you from going that way."`).
+
+Conditions are checked at display time, so the exit dynamically
+appears/unblocks as the player progresses.  Door checks (`door_id`)
+are evaluated **after** conditional checks — the player must first meet
+conditions, then also have the key if a locked door is present.
 
 ---
 
@@ -301,33 +340,119 @@ absorption).  Set `max_durability` to `-1` for indestructible gear.
 
 ---
 
+## Flag system
+
+The engine supports global boolean flags that can be set or cleared by
+game events.  Flags enable reactive game design: conditional dialogues,
+gated progression, and state tracking across rooms.
+
+### Declaring flags (optional)
+
+Flags can be pre-declared at the top level.  Pre-declared flags start
+as `false`.  Flags referenced in triggers but not declared are
+auto-created when first set.
+
+```json
+{
+  "flags": ["bridge_repaired", "dragon_slain", "quest_accepted"]
+}
+```
+
+### Flag triggers on objects
+
+```json
+{
+  "id": "lever",
+  "on_pickup_flags": { "set": ["bridge_repaired"] },
+  "on_use_flags":    { "set": ["blessed"], "clear": ["cursed"] }
+}
+```
+
+- `on_pickup_flags` fires after a successful pickup.
+- `on_use_flags` fires after a successful use (door unlock, door destroy, or healing).
+- Both `set` and `clear` are arrays of flag name strings (max 8 each).
+
+### Flag triggers on NPCs
+
+```json
+{
+  "id": "guard",
+  "on_talk_flags":  { "set": ["quest_accepted"] },
+  "on_death_flags": { "set": ["dragon_slain"] }
+}
+```
+
+- `on_talk_flags` fires after the NPC's **first** talk (not on repeats).
+- `on_death_flags` fires when the NPC is defeated in combat.
+
+### Checking flags
+
+Flags are currently used by the **conditional exits** system (see Exit
+section).  The engine provides `flag_check(gs, name)` which returns 1 if
+set, 0 otherwise.
+
+### Save/resume
+
+All flag names and values are fully preserved across save/resume.
+
+---
+
+## Inline color tags
+
+Any text field loaded from JSON (descriptions, dialogue, messages, end
+messages, first-visit messages, look descriptions, door messages) supports
+inline color tags that render as ANSI terminal colors:
+
+| Tag         | Effect                      |
+|-------------|-----------------------------|
+| `{red}`     | Red text                    |
+| `{green}`   | Green text                  |
+| `{yellow}`  | Yellow text                 |
+| `{blue}`    | Blue text                   |
+| `{magenta}` | Magenta text                |
+| `{cyan}`    | Cyan text                   |
+| `{white}`   | White text                  |
+| `{bold}`    | Bold text                   |
+| `{/}`       | Reset to default formatting |
+
+Tags can be nested (e.g. `{bold}{red}danger{/}`).  Use `{{` to produce
+a literal `{` character.  Unknown tags are printed as-is including braces.
+
+**Example:**
+```json
+"description": "A {red}blood-stained{/} altar sits in the {bold}center{/} of the room."
+```
+
+---
+
 ## Default fallback messages summary
 
-| Situation                             | Default message                         |
-|---------------------------------------|-----------------------------------------|
-| No exit in that direction             | You can't go that way.                  |
-| Locked door, no door message          | This door is locked.                    |
-| Door just unlocked                    | The door swings open.                   |
-| Door already unlocked                 | It's already open.                      |
-| Look with no description / no exit    | There's nothing to see that way.        |
-| Inspect with no description           | There's nothing special about it.       |
-| Pickup non-pickupable, no message     | You can't pick that up.                 |
-| Use with no valid target reachable    | Nothing happens.                        |
-| Use on a door that's not nearby       | You can't use that here.                |
-| Teleport with no teleport exit        | There's no teleporter here.             |
-| Room object list empty                | There's nothing here.                   |
-| Inventory empty                       | You're not carrying anything.           |
-| Win (no win_message / end_message)    | You have won!                           |
-| Lose (no end_message)                 | Game over.                              |
-| Door destroyed (no break_message)     | You smash through the door.             |
-| Door already destroyed                | That door is already destroyed.         |
-| No NPC in room                        | There's no one to talk to here.         |
-| NPC with no dialogue                  | They have nothing more to say.          |
-| No alive NPC to attack                | There is no one to fight here.          |
-| Player killed (0 HP)                  | You have been killed.                   |
-| Weapon durability reaches 0           | Your weapon is now useless!             |
-| Shield durability reaches 0           | Your shield is now useless!             |
-| No equippable items in inventory      | You have nothing to equip.              |
-| Player already at full HP             | You are already at full health.         |
-| No repairer NPC or repair kit         | Nothing to repair with.                 |
-| All gear already at full durability   | Already at full condition.              |
+| Situation                             | Default message                             |
+|---------------------------------------|---------------------------------------------|
+| No exit in that direction             | You can't go that way.                      |
+| Conditional exit not met              | Something prevents you from going that way. |
+| Locked door, no door message          | This door is locked.                        |
+| Door just unlocked                    | The door swings open.                       |
+| Door already unlocked                 | It's already open.                          |
+| Look with no description / no exit    | There's nothing to see that way.            |
+| Inspect with no description           | There's nothing special about it.           |
+| Pickup non-pickupable, no message     | You can't pick that up.                     |
+| Use with no valid target reachable    | Nothing happens.                            |
+| Use on a door that's not nearby       | You can't use that here.                    |
+| Teleport with no teleport exit        | There's no teleporter here.                 |
+| Room object list empty                | There's nothing here.                       |
+| Inventory empty                       | You're not carrying anything.               |
+| Win (no win_message / end_message)    | You have won!                               |
+| Lose (no end_message)                 | Game over.                                  |
+| Door destroyed (no break_message)     | You smash through the door.                 |
+| Door already destroyed                | That door is already destroyed.             |
+| No NPC in room                        | There's no one to talk to here.             |
+| NPC with no dialogue                  | They have nothing more to say.              |
+| No alive NPC to attack                | There is no one to fight here.              |
+| Player killed (0 HP)                  | You have been killed.                       |
+| Weapon durability reaches 0           | Your weapon is now useless!                 |
+| Shield durability reaches 0           | Your shield is now useless!                 |
+| No equippable items in inventory      | You have nothing to equip.                  |
+| Player already at full HP             | You are already at full health.             |
+| No repairer NPC or repair kit         | Nothing to repair with.                     |
+| All gear already at full durability   | Already at full condition.                  |
