@@ -49,18 +49,18 @@ When **all** listed objects are simultaneously in the player's inventory
   "use_target":    "cellar_door",       (optional) id of the Door this object unlocks
   "message":       "You can't lift it." (optional) shown when pickup blocked or use fails
   "on_pickup_end": "lose",              (optional) "win" or "lose" — triggered on successful pickup
-  "on_use_end":    "win",              (optional) "win" or "lose" — triggered on successful use
-  "end_message":   "You collapse..."   (optional) shown on the end screen; falls back to default
-  "is_weapon":     true,               (optional, default false) can be equipped as a weapon
-  "is_shield":     true,               (optional, default false) can be equipped as a shield
-  "damage":        5,                  (optional, default 0) weapon bonus damage added per attack
-  "defense":       20,                 (optional, default 0) shield damage absorption percentage (0-100)
-  "max_durability": 100,               (optional, default 0) 0 = durability not tracked; -1 = indestructible
-  "durability":    80,                 (optional) starting durability (0-100 scale); defaults to max_durability if absent
-  "heal":          30,                 (optional, default 0) HP restored when player uses this item (0 = no heal)
-  "repair_amount": 25,                 (optional, default 0) durability restored per use as a repair kit (0 = not a kit)
-  "is_template":   true,               (optional, default false) prototype for dynamic spawning; never placed in world
-  "template_base": "sword"             (optional) base name used when generating numbered instance ids (e.g. "sword_01")
+  "on_use_end":    "win",               (optional) "win" or "lose" — triggered on successful use
+  "end_message":   "You collapse..."    (optional) shown on the end screen; falls back to default
+  "is_weapon":     true,                (optional, default false) can be equipped as a weapon
+  "is_shield":     true,                (optional, default false) can be equipped as a shield
+  "damage":        5,                   (optional, default 0) weapon bonus damage added per attack
+  "defense":       20,                  (optional, default 0) shield damage absorption percentage (0-100)
+  "max_durability": 100,                (optional, default 0) 0 = durability not tracked; -1 = indestructible
+  "durability":    80,                  (optional) starting durability (0-100 scale); defaults to max_durability if absent
+  "heal":          30,                  (optional, default 0) HP restored when player uses this item (0 = no heal)
+  "repair_amount": 25,                  (optional, default 0) durability restored per use as a repair kit (0 = not a kit)
+  "is_template":   true,                (optional, default false) prototype for dynamic spawning; never placed in world
+  "template_base": "sword"              (optional) base name used when generating numbered instance ids (e.g. "sword_01")
 }
 ```
 
@@ -92,19 +92,19 @@ When **all** listed objects are simultaneously in the player's inventory
   "dialogue":       "Take this axe...", (optional) shown on first [T]alk
   "after_dialogue": "I told you all.",  (optional) shown on subsequent talks;
                                         falls back to dialogue if absent
-  "gives":          "axe"              (optional) id of Object added to player
+  "gives":          "axe"               (optional) id of Object added to player
                                         inventory on first talk; if inventory is
                                         full the object is dropped in the room
-  "hostile":        true,              (optional, default false) warns player on room entry;
+  "hostile":        true,               (optional, default false) warns player on room entry;
                                         auto-attacks before the next non-go command
-  "hp":             20,                (optional, default 0) max (and starting) hit points;
+  "hp":             20,                 (optional, default 0) max (and starting) hit points;
                                         0 = non-combat NPC
-  "damage":         5,                 (optional, default 0) counter-attack damage per round
-  "drops":          "old_dagger",      (optional) id of Object dropped in the room on death
-  "healer":         true,              (optional, default false) restores player HP on every [T]alk
-  "heal_amount":    15,                (optional, default 0) HP restored per talk when healer is true
-  "repairer":       true,              (optional, default false) repairs all equipped gear to max via [R]epair
-  "is_template":    true               (optional, default false) prototype for dynamic spawning; never placed in world
+  "damage":         5,                  (optional, default 0) counter-attack damage per round
+  "drops":          "old_dagger",       (optional) id of Object dropped in the room on death
+  "healer":         true,               (optional, default false) restores player HP on every [T]alk
+  "heal_amount":    15,                 (optional, default 0) HP restored per talk when healer is true
+  "repairer":       true,               (optional, default false) repairs all equipped gear to max via [R]epair
+  "is_template":    true                (optional, default false) prototype for dynamic spawning; never placed in world
 }
 ```
 
@@ -232,11 +232,11 @@ When **all** listed objects are simultaneously in the player's inventory
 
 Three independent end-condition mechanisms exist; any may trigger at any time:
 
-| Type | Trigger                     | JSON location          | Fields                             |
-|------|-----------------------------|------------------------|------------------------------------|
-| 1    | Player enters room          | Room object            | `end_condition`, `end_message`     |
+| Type | Trigger                     | JSON location          | Fields                                       |
+|------|-----------------------------|------------------------|----------------------------------------------|
+| 1    | Player enters room          | Room object            | `end_condition`, `end_message`               |
 | 2    | Successful pickup or use    | Object object          | `on_pickup_end`, `on_use_end`, `end_message` |
-| 3    | All win items in inventory  | Top-level              | `win_condition`, `win_message`     |
+| 3    | All win items in inventory  | Top-level              | `win_condition`, `win_message`               |
 
 `end_condition` / `on_pickup_end` / `on_use_end` accept `"win"` or `"lose"`.
 
